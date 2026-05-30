@@ -1,0 +1,16 @@
+{
+  "name": "vyro-sfvn-upgrade-v2-candle-flow",
+  "version": "2.0.0",
+  "description": "VYRO SFVN AI Terminal upgrade V2 - candle fix + flow engine",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

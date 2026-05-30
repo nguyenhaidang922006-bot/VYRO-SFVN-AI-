@@ -1,58 +1,47 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="vi">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>VYRO SFVN Standalone</title>
-<link rel="stylesheet" href="style.css"/>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>VYRO SFVN AI Terminal</title>
+<link rel="stylesheet" href="/style.css"/>
 </head>
 <body>
+<div class="app">
 <aside>
-  <div class="logo">VYRO<span>SFVN AI TERMINAL</span></div>
+  <div class="logo">VYRO</div>
+  <div class="subtitle">SFVN AI TERMINAL</div>
   <label>Symbol</label>
-  <input id="symbol" value="CP2CON26"/>
-  <button id="connect">CONNECT</button>
-  <div class="info">Status: <b id="status">WAITING</b></div>
+  <input value="CP2CON26" readonly/>
+  <button id="connectBtn">CONNECT</button>
+  <div class="info">Status: <b id="status">CONNECTING</b></div>
   <div class="info">Update: <b id="updated">--</b></div>
 </aside>
 <main>
-  <header>
-    <div>
-      <h1>VYRO SFVN Commodity AI Terminal</h1>
-      <p>API hàng hóa → AI Indicator Engine → Dashboard realtime</p>
+<header>
+  <div><h1>VYRO SFVN Commodity AI Terminal</h1><p>SFVN API → AI Indicator Engine → Dashboard realtime</p></div>
+  <div class="quote"><div>CP2CON26</div><div class="price" id="last">--</div><div>Bid <b id="bid">--</b> / Ask <b id="ask">--</b></div></div>
+</header>
+<section class="layout">
+  <div class="panel"><canvas id="chart" width="1000" height="560"></canvas></div>
+  <div class="panel matrix">
+    <h2>AI Signal Matrix</h2>
+    <div class="cards">
+      <div class="card"><span>Signal</span><b id="signal">WAIT</b></div>
+      <div class="card"><span>Confidence</span><b id="confidence">--</b></div>
+      <div class="card"><span>Structure</span><b id="structure">--</b></div>
+      <div class="card"><span>Bias</span><b id="bias">--</b></div>
+      <div class="card"><span>Liquidity</span><b id="liquidity">--</b></div>
+      <div class="card"><span>Stop Hunt</span><b id="stopHunt">--</b></div>
+      <div class="card"><span>Supply</span><b id="supply">--</b></div>
+      <div class="card"><span>Demand</span><b id="demand">--</b></div>
+      <div class="card"><span>Delta</span><b id="delta">--</b></div>
+      <div class="card"><span>Flow</span><b id="flow">--</b></div>
     </div>
-    <div class="quote">
-      <span id="sym">CP2CON26</span>
-      <b id="last">--</b>
-      <small>Bid <i id="bid">--</i> / Ask <i id="ask">--</i></small>
-    </div>
-  </header>
-  <section>
-    <div class="chartBox"><canvas id="chart"></canvas></div>
-    <div class="panel">
-      <h2>AI Signal Matrix</h2>
-      <div class="cards">
-        <div><span>Signal</span><b id="signal">WAIT</b></div>
-        <div><span>Confidence</span><b id="conf">--</b></div>
-        <div><span>Structure</span><b id="structure">--</b></div>
-        <div><span>BOS/CHOCH</span><b id="bos">--</b></div>
-        <div><span>Liquidity</span><b id="liq">--</b></div>
-        <div><span>Stop Hunt</span><b id="stop">--</b></div>
-        <div><span>Supply</span><b id="supply">--</b></div>
-        <div><span>Demand</span><b id="demand">--</b></div>
-        <div><span>Delta</span><b id="delta">--</b></div>
-        <div><span>Flow</span><b id="flow">--</b></div>
-      </div>
-      <h2>AI TP Engine</h2>
-      <div class="tp">
-        <div>TP1 <b id="tp1">--</b></div>
-        <div>TP2 <b id="tp2">--</b></div>
-        <div>TP3 <b id="tp3">--</b></div>
-        <div>SL <b id="sl">--</b></div>
-      </div>
-    </div>
-  </section>
+  </div>
+</section>
 </main>
-<script src="script.js"></script>
+</div>
+<script src="/script.js"></script>
 </body>
 </html>

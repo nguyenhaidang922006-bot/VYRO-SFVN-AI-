@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: vyro-sfvn-ai
+    name: vyro-sfvn-pro-final
     env: node
     rootDir: backend
     buildCommand: npm install

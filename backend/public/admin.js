@@ -1,0 +1,9 @@
+function $(id){return document.getElementById(id)}
+function getPass(){return localStorage.getItem("VYRO_ADMIN_PASS")||""}
+async function af(p,o={}){const r=await fetch(p,{...o,headers:{"content-type":"application/json","x-admin-pass":getPass(),...(o.headers||{})}});if(r.status===401){$("adminMsg").innerText="Sai pass admin";throw new Error("401")}return await r.json()}
+function adminLogin(){const p=$("adminPass").value.trim();if(!p){$("adminMsg").innerText="Nhập pass";return}localStorage.setItem("VYRO_ADMIN_PASS",p);loadAdmin().then(()=>{$("adminLogin").classList.add("hidden");$("adminPanel").classList.remove("hidden")}).catch(()=>localStorage.removeItem("VYRO_ADMIN_PASS"))}
+async function loadAdmin(){const j=await af("/api/admin/config");$("accessCodeInput").value=j.accessCode||"";$("activeSymbolInput").value=j.activeSymbol||"";$("usersText").value=JSON.stringify(j.users||[],null,2);render(j.symbols||[])}
+function render(s){const b=$("symbolsBox");b.innerHTML="";s.forEach((x,i)=>{const r=document.createElement("div");r.className="symRow";r.innerHTML=`<input data-i="${i}" data-k="name" value="${x.name||""}"/><input data-i="${i}" data-k="symbol" value="${x.symbol||""}"/><input data-i="${i}" data-k="note" value="${x.note||""}"/>`;b.appendChild(r)});window._symbols=s}
+function collect(){const s=window._symbols||[];document.querySelectorAll("#symbolsBox input").forEach(i=>{s[Number(i.dataset.i)][i.dataset.k]=i.value});return s}
+async function saveAdmin(){let users=[];try{users=JSON.parse($("usersText").value||"[]")}catch(e){alert("Users JSON lỗi");return}await af("/api/admin/config",{method:"POST",body:JSON.stringify({accessCode:$("accessCodeInput").value.trim(),activeSymbol:$("activeSymbolInput").value.trim(),symbols:collect(),users})});alert("Đã lưu")}
+if(getPass()){loadAdmin().then(()=>{$("adminLogin").classList.add("hidden");$("adminPanel").classList.remove("hidden")}).catch(()=>localStorage.removeItem("VYRO_ADMIN_PASS"))}

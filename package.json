@@ -1,11 +1,16 @@
 {
-  "name": "vyro-sfvn-standalone-v1",
+  "name": "vyro-sfvn-ai-backend-update",
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "latest"
+    "cors": "latest",
+    "express": "latest",
+    "ws": "latest"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }

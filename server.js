@@ -205,6 +205,6 @@ app.get("/api/stream", async (req, res) => {
   req.on("close", () => clearInterval(timer));
 });
 
-app.get("*", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
+app.get(/.*/, (req, res) => res.sendFile(path.join(__dirname, "index.html")));
 
 app.listen(PORT, () => console.log("VYRO SFVN STANDALONE V1 running on " + PORT));

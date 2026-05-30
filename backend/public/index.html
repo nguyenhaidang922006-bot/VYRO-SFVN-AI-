@@ -1,0 +1,66 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>VYRO SFVN AI Terminal</title>
+<style>
+body{background:#08122b;color:#dff;font-family:Arial;margin:0;padding:20px}
+.box{border:1px solid #1f4fff;border-radius:12px;padding:20px;margin-bottom:20px;background:#0d1838}
+.price{font-size:42px;color:#4fffd6;font-weight:bold}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.small{font-size:14px;color:#9ecbff}
+</style>
+</head>
+<body>
+<h1>VYRO SFVN AI TERMINAL</h1>
+
+<div class="box">
+<div class="small">Realtime Price</div>
+<div class="price" id="last">--</div>
+<div>Bid: <span id="bid">--</span></div>
+<div>Ask: <span id="ask">--</span></div>
+</div>
+
+<div class="grid">
+<div class="box">
+<h3>AI Signal</h3>
+<div id="signal">WAIT</div>
+</div>
+
+<div class="box">
+<h3>Market Status</h3>
+<div id="status">Connecting...</div>
+</div>
+</div>
+
+<script>
+async function loadData(){
+  try{
+    const r = await fetch('/api/tick');
+    const j = await r.json();
+
+    const d = j.data || j;
+
+    document.getElementById('last').innerText = d.last || '--';
+    document.getElementById('bid').innerText = d.bid || '--';
+    document.getElementById('ask').innerText = d.ask || '--';
+    document.getElementById('status').innerText = 'LIVE';
+
+    let signal = 'WAIT';
+
+    if(d.last > d.open) signal = 'BUY';
+    if(d.last < d.open) signal = 'SELL';
+
+    document.getElementById('signal').innerText = signal;
+
+  }catch(e){
+    document.getElementById('status').innerText = 'ERROR';
+  }
+}
+
+loadData();
+setInterval(loadData, 2000);
+</script>
+</body>
+</html>

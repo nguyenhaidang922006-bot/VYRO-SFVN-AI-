@@ -22,8 +22,4 @@ function updateConfig(patch={}){
   return config;
 }
 
-function findSymbol(symbol){
-  return config.symbols.find(x => x.symbol === symbol || x.key === symbol) || null;
-}
-
-module.exports = { getConfig, updateConfig, findSymbol };
+module.exports = { getConfig, updateConfig };

@@ -1,7 +1,7 @@
 {
-  "name": "vyro-sfvn-v5-pro-full-admin-multi-symbol",
-  "version": "5.0.0",
-  "description": "VYRO SFVN V5 Pro Full - hidden admin, access code, multi symbols",
+  "name": "vyro-sfvn-v6-realtime-pro-phase1",
+  "version": "6.0.0",
+  "description": "VYRO SFVN V6 Realtime Pro Phase 1 - candle, volume, delta, heatmap, orderflow, tape",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

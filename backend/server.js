@@ -1,9 +1,9 @@
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
-const { fetchTick, buildCandle, getCandles, resetCandles } = require("./services/sfvnTickCandle");
-const { buildAI } = require("./services/aiEngine");
 const { getConfig, updateConfig } = require("./services/configStore");
+const { fetchTick, processTick, getState, resetState } = require("./services/realtimeEngine");
+const { buildAI } = require("./services/aiEngine");
 
 const app = express();
 app.use(cors());
@@ -14,6 +14,9 @@ let cache = {
   symbol: getConfig().activeSymbol,
   tick: null,
   candles: [],
+  tape: [],
+  orderflow: null,
+  heatmap: [],
   ai: null,
   updatedAt: null,
   errors: []
@@ -40,16 +43,19 @@ async function refresh(){
     const cfg = getConfig();
     if(cache.symbol !== cfg.activeSymbol){
       cache.symbol = cfg.activeSymbol;
-      resetCandles();
+      resetState();
     }
 
     const tick = await fetchTick(cfg.activeSymbol);
-    buildCandle(tick);
-    const candles = getCandles();
-    const ai = buildAI(tick, candles);
+    processTick(tick);
+    const state = getState();
+    const ai = buildAI(tick, state.candles, state.orderflow);
 
     cache.tick = tick;
-    cache.candles = candles;
+    cache.candles = state.candles;
+    cache.tape = state.tape;
+    cache.orderflow = state.orderflow;
+    cache.heatmap = state.heatmap;
     cache.ai = ai;
     cache.updatedAt = new Date().toISOString();
     cache.errors = [];
@@ -64,10 +70,11 @@ setInterval(refresh, 2000);
 
 app.get("/health", (req,res)=>res.json({
   ok:true,
-  name:"VYRO SFVN AI Backend V5 Pro Full",
+  name:"VYRO SFVN AI Backend V6 Realtime Pro",
   symbol:cache.symbol,
   updatedAt:cache.updatedAt,
   candles:cache.candles.length,
+  tape:cache.tape.length,
   access:"enabled",
   admin:"hidden:/admin-secret",
   errors:cache.errors
@@ -78,9 +85,11 @@ app.get("/api/config", checkAccess, (req,res)=>{
   res.json({ok:true, activeSymbol:cfg.activeSymbol, symbols:cfg.symbols});
 });
 
+app.get("/api/market", checkAccess, (req,res)=>res.json({...cache,ok:true}));
 app.get("/api/tick", checkAccess, (req,res)=>res.json({ok:true,data:cache.tick,updatedAt:cache.updatedAt,errors:cache.errors}));
 app.get("/api/history", checkAccess, (req,res)=>res.json({ok:true,count:cache.candles.length,data:cache.candles,updatedAt:cache.updatedAt,errors:cache.errors}));
-app.get("/api/market", checkAccess, (req,res)=>res.json({...cache,ok:true}));
+app.get("/api/tape", checkAccess, (req,res)=>res.json({ok:true,count:cache.tape.length,data:cache.tape,updatedAt:cache.updatedAt,errors:cache.errors}));
+app.get("/api/orderflow", checkAccess, (req,res)=>res.json({ok:true,data:cache.orderflow,heatmap:cache.heatmap,updatedAt:cache.updatedAt,errors:cache.errors}));
 
 app.get("/api/admin/config", checkAdmin, (req,res)=>{
   const cfg = getConfig();
@@ -89,14 +98,14 @@ app.get("/api/admin/config", checkAdmin, (req,res)=>{
     accessCode:cfg.accessCode,
     activeSymbol:cfg.activeSymbol,
     symbols:cfg.symbols,
-    cache:{updatedAt:cache.updatedAt,candles:cache.candles.length,errors:cache.errors}
+    cache:{updatedAt:cache.updatedAt,candles:cache.candles.length,tape:cache.tape.length,errors:cache.errors}
   });
 });
 
 app.post("/api/admin/config", checkAdmin, (req,res)=>{
   const before = getConfig().activeSymbol;
   const cfg = updateConfig(req.body || {});
-  if(before !== cfg.activeSymbol) resetCandles();
+  if(before !== cfg.activeSymbol) resetState();
   res.json({ok:true, config:{accessCode:cfg.accessCode, activeSymbol:cfg.activeSymbol, symbols:cfg.symbols}});
 });
 
@@ -109,4 +118,4 @@ app.get("/admin-secret", (req,res)=>{
 app.get("*", (req,res)=>res.sendFile(path.join(__dirname, "public", "index.html")));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, ()=>console.log("VYRO SFVN V5 Pro Full running on port", PORT));
+app.listen(PORT, ()=>console.log("VYRO SFVN V6 Realtime Pro running on port", PORT));

@@ -1,0 +1,16 @@
+{
+  "name": "vyro-sfvn-render-full-clean-v2",
+  "version": "2.0.0",
+  "description": "VYRO SFVN AI Terminal - Render full clean build",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.3",
+    "cors": "^2.8.5"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

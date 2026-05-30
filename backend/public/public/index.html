@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>VYRO SFVN AI Terminal</title>
+  <link rel="stylesheet" href="/style.css"/>
+</head>
+<body>
+  <div class="app">
+    <aside class="side">
+      <div class="logo">VYRO</div>
+      <div class="sub">SFVN AI TERMINAL</div>
+      <label>Symbol</label>
+      <input id="symbol" value="CP2CON26" readonly />
+      <button onclick="loadMarket()">CONNECT</button>
+      <div class="status">Status: <b id="status">CONNECTING</b></div>
+      <div class="status">Update: <b id="updated">--</b></div>
+    </aside>
+
+    <main>
+      <header>
+        <div>
+          <h1>VYRO SFVN Commodity AI Terminal</h1>
+          <p>SFVN API → AI Indicator Engine → Dashboard realtime</p>
+        </div>
+        <div class="quote">
+          <div id="topSymbol">CP2CON26</div>
+          <div class="price" id="last">--</div>
+          <div>Bid <span id="bid">--</span> / Ask <span id="ask">--</span></div>
+        </div>
+      </header>
+
+      <section class="layout">
+        <div class="chartBox">
+          <canvas id="chart" width="900" height="500"></canvas>
+        </div>
+
+        <div class="matrix">
+          <h2>AI Signal Matrix</h2>
+          <div class="grid">
+            <div class="card"><span>Signal</span><b id="signal">WAIT</b></div>
+            <div class="card"><span>Confidence</span><b id="confidence">--</b></div>
+            <div class="card"><span>Structure</span><b id="structure">--</b></div>
+            <div class="card"><span>Bias</span><b id="bias">--</b></div>
+            <div class="card"><span>Liquidity</span><b id="liquidity">--</b></div>
+            <div class="card"><span>Stop Hunt</span><b id="stopHunt">--</b></div>
+            <div class="card"><span>Supply</span><b id="supply">--</b></div>
+            <div class="card"><span>Demand</span><b id="demand">--</b></div>
+            <div class="card"><span>Delta</span><b id="delta">--</b></div>
+            <div class="card"><span>Flow</span><b id="flow">--</b></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+<script src="/script.js"></script>
+</body>
+</html>

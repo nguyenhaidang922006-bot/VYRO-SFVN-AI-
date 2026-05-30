@@ -1,7 +1,7 @@
 {
-  "name": "vyro-sfvn-v3-tick-candle-engine",
-  "version": "3.0.0",
-  "description": "VYRO SFVN V3 - build realtime candles from public tick API",
+  "name": "vyro-sfvn-v5-pro-full-admin-multi-symbol",
+  "version": "5.0.0",
+  "description": "VYRO SFVN V5 Pro Full - hidden admin, access code, multi symbols",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

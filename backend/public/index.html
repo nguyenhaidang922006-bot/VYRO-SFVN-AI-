@@ -1,60 +1,37 @@
 <!DOCTYPE html>
 <html lang="vi">
-<head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>VYRO SFVN AI Terminal V3</title>
-<link rel="stylesheet" href="/style.css"/>
-</head>
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>VYRO SFVN AI Terminal V5</title><link rel="stylesheet" href="/style.css"/></head>
 <body>
-<div class="app">
-<aside>
-  <div class="logo">VYRO</div>
-  <div class="subtitle">SFVN AI TERMINAL V3</div>
-  <label>Symbol</label>
-  <input value="CP2CON26" readonly/>
-  <button id="connectBtn">CONNECT</button>
-  <div class="info">Status: <b id="status">CONNECTING</b></div>
-  <div class="info">Update: <b id="updated">--</b></div>
-  <div class="mini">
-    <div>Candle Mode: <b id="mode">TICK</b></div>
-    <div>Candles: <b id="hcount">--</b></div>
+<div id="login" class="login">
+  <div class="loginBox">
+    <div class="logo big">VYRO</div><h2>Nhập mã truy cập</h2><p>Chỉ khách có mã mới vào được dashboard.</p>
+    <input id="accessCode" type="password" placeholder="Nhập mã VYRO"/>
+    <button onclick="saveCode()">VÀO WEB</button><div id="loginMsg" class="err"></div>
   </div>
+</div>
+<div id="app" class="app hidden">
+<aside>
+  <div class="logo">VYRO</div><div class="subtitle">SFVN AI TERMINAL V5</div>
+  <label>Chọn mã giao dịch</label><select id="symbolSelect"></select>
+  <button id="connectBtn">CONNECT</button><button class="logout" onclick="logout()">ĐỔI MÃ / THOÁT</button>
+  <div class="info">Status: <b id="status">CONNECTING</b></div><div class="info">Update: <b id="updated">--</b></div>
+  <div class="mini"><div>Candle Mode: <b id="mode">TICK</b></div><div>Candles: <b id="hcount">--</b></div></div>
 </aside>
-
 <main>
 <header>
-  <div>
-    <h1>VYRO SFVN Commodity AI Terminal</h1>
-    <p>SFVN Tick API → Realtime Candle Builder → AI Matrix</p>
-  </div>
-  <div class="quote">
-    <div>CP2CON26</div>
-    <div class="price" id="last">--</div>
-    <div>Bid <b id="bid">--</b> / Ask <b id="ask">--</b></div>
-  </div>
+  <div><h1>VYRO SFVN Commodity AI Terminal</h1><p>Access Code → Multi Symbol → SFVN Tick API → AI Matrix</p></div>
+  <div class="quote"><div id="topSymbol">--</div><div class="price" id="last">--</div><div>Bid <b id="bid">--</b> / Ask <b id="ask">--</b></div></div>
 </header>
-
 <section class="layout">
   <div class="panel"><canvas id="chart" width="1000" height="560"></canvas></div>
-  <div class="panel matrix">
-    <h2>AI Signal Matrix</h2>
-    <div class="cards">
-      <div class="card"><span>Signal</span><b id="signal">WAIT</b></div>
-      <div class="card"><span>Confidence</span><b id="confidence">--</b></div>
-      <div class="card"><span>Structure</span><b id="structure">--</b></div>
-      <div class="card"><span>Bias</span><b id="bias">--</b></div>
-      <div class="card"><span>Liquidity</span><b id="liquidity">--</b></div>
-      <div class="card"><span>Stop Hunt</span><b id="stopHunt">--</b></div>
-      <div class="card"><span>Supply</span><b id="supply">--</b></div>
-      <div class="card"><span>Demand</span><b id="demand">--</b></div>
-      <div class="card"><span>Delta</span><b id="delta">--</b></div>
-      <div class="card"><span>Flow</span><b id="flow">--</b></div>
-    </div>
-  </div>
+  <div class="panel matrix"><h2>AI Signal Matrix</h2><div class="cards">
+    <div class="card"><span>Signal</span><b id="signal">WAIT</b></div><div class="card"><span>Confidence</span><b id="confidence">--</b></div>
+    <div class="card"><span>Structure</span><b id="structure">--</b></div><div class="card"><span>Bias</span><b id="bias">--</b></div>
+    <div class="card"><span>Liquidity</span><b id="liquidity">--</b></div><div class="card"><span>Stop Hunt</span><b id="stopHunt">--</b></div>
+    <div class="card"><span>Supply</span><b id="supply">--</b></div><div class="card"><span>Demand</span><b id="demand">--</b></div>
+    <div class="card"><span>Delta</span><b id="delta">--</b></div><div class="card"><span>Flow</span><b id="flow">--</b></div>
+  </div></div>
 </section>
-</main>
-</div>
+</main></div>
 <script src="/script.js"></script>
-</body>
-</html>
+</body></html>

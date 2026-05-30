@@ -1,0 +1,16 @@
+{
+  "name": "vyro-sfvn-v3-tick-candle-engine",
+  "version": "3.0.0",
+  "description": "VYRO SFVN V3 - build realtime candles from public tick API",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.3",
+    "cors": "^2.8.5"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

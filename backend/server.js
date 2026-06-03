@@ -127,7 +127,7 @@ function median(arr) {
   return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
 }
 
-// V42: Always use mid(Bid/Ask) first. SFVN last/lt can be stale.
+// V43: Always use mid(Bid/Ask) first. SFVN last/lt can be stale.
 function normalizeTick(tick) {
   const bid = num(tick.b ?? tick.bid);
   const ask = num(tick.a ?? tick.ask);
@@ -639,7 +639,7 @@ function connect() {
     wsStatus = "LIVE";
     lastError = "";
     subscribe();
-    console.log("[VYRO V42] connected:", FEED_SYMBOL);
+    console.log("[VYRO V43] connected:", FEED_SYMBOL);
   });
 
   ws.on("message", raw => {
@@ -650,13 +650,13 @@ function connect() {
   ws.on("error", err => {
     wsStatus = "ERROR";
     lastError = err.message;
-    console.error("[VYRO V42] WS error:", err.message);
+    console.error("[VYRO V43] WS error:", err.message);
   });
 
   ws.on("close", (code, reason) => {
     wsStatus = "RECONNECTING";
     lastError = `closed ${code} ${reason || ""}`;
-    console.warn("[VYRO V42] WS closed", code, reason.toString());
+    console.warn("[VYRO V43] WS closed", code, reason.toString());
     setTimeout(connect, 3000);
   });
 }
@@ -714,4 +714,4 @@ app.use(express.static(path.join(__dirname, "../frontend")));
 app.get("*", (req, res) => res.sendFile(path.join(__dirname, "../frontend/index.html")));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("[VYRO V42] running on", PORT));
+app.listen(PORT, () => console.log("[VYRO V43] running on", PORT));

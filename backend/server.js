@@ -14,6 +14,7 @@ const PRODUCT_NAME = process.env.PRODUCT_NAME || "Nano Silver 07/2026";
 const PRICE_WS = process.env.SFVN_PRICE_WS || "wss://client-uat.mapsinfotech.com/v2/ws/maps/price";
 
 const TF_MS = { M1: 60000, M5: 300000, M15: 900000 };
+const MICRO_MS = { M1: 5000, M5: 10000, M15: 15000 }; // warm-up chart bars from realtime ticks
 const MAX_CANDLES = 360;
 const MAX_TICK_JUMP = Number(process.env.MAX_TICK_JUMP || 4.0);
 const SIGNAL_COOLDOWN_BARS = 4;
@@ -44,6 +45,7 @@ let live = {
 };
 
 let candles = { M1: [], M5: [], M15: [] };
+let tickTape = [];
 let priceWindow = [];
 let lastAcceptedPrice = null;
 let globalCvd = 0;
@@ -103,9 +105,7 @@ function median(arr) {
   return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
 }
 
-// IMPORTANT V37:
-// Do NOT use lt/last as display price for SFVN NSI.
-// Use bid/ask mid price because lt can be stale or from another internal feed.
+// V38: Always use mid(Bid/Ask) first. SFVN last/lt can be stale.
 function normalizeTick(tick) {
   const bid = num(tick.b ?? tick.bid);
   const ask = num(tick.a ?? tick.ask);
@@ -117,14 +117,12 @@ function normalizeTick(tick) {
   } else if (Number.isFinite(last) && last > 20) {
     price = last;
   }
-
   return { price, bid, ask, last };
 }
 
-function validateTick(tick, price, bid, ask) {
+function validateTick(tick, price) {
   if (!acceptedSymbol(tick.s)) return { ok: false, reason: "symbol_mismatch" };
   if (!Number.isFinite(price) || price <= 0) return { ok: false, reason: "bad_price" };
-
   if (price < 20) return { ok: false, reason: "wrong_scale_low" };
   if (price > 200) return { ok: false, reason: "wrong_scale_high" };
 
@@ -132,11 +130,9 @@ function validateTick(tick, price, bid, ask) {
   if (med !== null && priceWindow.length >= 8 && Math.abs(price - med) > MAX_TICK_JUMP) {
     return { ok: false, reason: "jump_vs_median" };
   }
-
   if (lastAcceptedPrice !== null && Math.abs(price - lastAcceptedPrice) > MAX_TICK_JUMP) {
     return { ok: false, reason: "jump_vs_last" };
   }
-
   return { ok: true, reason: "" };
 }
 
@@ -146,17 +142,7 @@ function updateCandle(tf, ts, price, tickVol, signedVol, bid, ask) {
   let c = arr[arr.length - 1];
 
   if (!c || c.time !== bucket) {
-    c = {
-      time: bucket,
-      open: price,
-      high: price,
-      low: price,
-      close: price,
-      volume: Math.max(1, tickVol),
-      delta: signedVol,
-      bid,
-      ask
-    };
+    c = { time: bucket, open: price, high: price, low: price, close: price, volume: Math.max(1, tickVol), delta: signedVol, bid, ask, real: true };
     arr.push(c);
     if (arr.length > MAX_CANDLES) arr.shift();
     return;
@@ -173,7 +159,7 @@ function updateCandle(tf, ts, price, tickVol, signedVol, bid, ask) {
 
 function applyTick(tick) {
   const { price, bid, ask, last } = normalizeTick(tick);
-  const check = validateTick(tick, price, bid, ask);
+  const check = validateTick(tick, price);
 
   if (!check.ok) {
     rejectedTicks++;
@@ -205,6 +191,9 @@ function applyTick(tick) {
   priceWindow.push(price);
   if (priceWindow.length > 30) priceWindow.shift();
 
+  tickTape.push({ ts, price, bid: safeBid, ask: safeAsk, volume: tickVol, delta: signedVol });
+  if (tickTape.length > 1200) tickTape.shift();
+
   live = {
     displaySymbol: DISPLAY_SYMBOL,
     feedSymbol: tick.s || "",
@@ -226,6 +215,62 @@ function applyTick(tick) {
   Object.keys(TF_MS).forEach(tf => updateCandle(tf, ts, price, tickVol, signedVol, safeBid, safeAsk));
 }
 
+// Build live micro bars so chart/indicators run immediately before full M5 candle history exists.
+function buildMicroCandles(tf = "M5") {
+  const ms = MICRO_MS[tf] || 10000;
+  const map = new Map();
+
+  for (const t of tickTape) {
+    const bucket = Math.floor(t.ts / ms) * ms;
+    let c = map.get(bucket);
+    if (!c) {
+      c = { time: bucket, open: t.price, high: t.price, low: t.price, close: t.price, volume: t.volume, delta: t.delta, bid: t.bid, ask: t.ask, real: false };
+      map.set(bucket, c);
+    } else {
+      c.high = Math.max(c.high, t.price);
+      c.low = Math.min(c.low, t.price);
+      c.close = t.price;
+      c.volume += t.volume;
+      c.delta += t.delta;
+      c.bid = t.bid;
+      c.ask = t.ask;
+    }
+  }
+
+  let arr = Array.from(map.values()).sort((a, b) => a.time - b.time);
+
+  // If market is slow and only one or two ticks exist, seed tiny flat bars from the first live price.
+  if (arr.length < 12 && live.price) {
+    const now = Date.now();
+    const seed = [];
+    for (let i = 16; i >= 1; i--) {
+      const p = live.price;
+      seed.push({
+        time: now - i * ms,
+        open: p,
+        high: p,
+        low: p,
+        close: p,
+        volume: 1,
+        delta: 0,
+        bid: live.bid || p,
+        ask: live.ask || p,
+        real: false
+      });
+    }
+    arr = [...seed, ...arr];
+  }
+
+  return arr.slice(-120);
+}
+
+function getDisplayCandles(tf = "M5") {
+  const real = candles[tf] || [];
+  // Need enough bars for chart and indicators. Until enough real candles exist, use live micro bars.
+  if (real.length >= 6) return real;
+  return buildMicroCandles(tf);
+}
+
 function ema(vals, period = 21) {
   if (!vals.length) return 0;
   const k = 2 / (period + 1);
@@ -235,33 +280,31 @@ function ema(vals, period = 21) {
 }
 
 function rsi(vals, period = 14) {
-  if (vals.length < period + 1) return 50;
-  const arr = vals.slice(-period - 1);
+  if (vals.length < 2) return 50;
+  const arr = vals.slice(-(period + 1));
   let gain = 0, loss = 0;
   for (let i = 1; i < arr.length; i++) {
     const d = arr[i] - arr[i - 1];
     if (d > 0) gain += d;
     else loss -= d;
   }
+  if (gain === 0 && loss === 0) return 50;
   if (loss === 0) return 100;
   return 100 - 100 / (1 + gain / loss);
 }
 
 function atr(c, period = 14) {
-  if (c.length < period + 1) return 0;
-  const arr = c.slice(-period - 1);
+  if (c.length < 2) return 0;
+  const arr = c.slice(-(period + 1));
   const trs = [];
   for (let i = 1; i < arr.length; i++) {
     const cur = arr[i], prev = arr[i - 1];
     trs.push(Math.max(cur.high - cur.low, Math.abs(cur.high - prev.close), Math.abs(cur.low - prev.close)));
   }
-  return trs.reduce((a, b) => a + b, 0) / trs.length;
+  return trs.length ? trs.reduce((a, b) => a + b, 0) / trs.length : 0;
 }
 
-function avg(a) {
-  return a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
-}
-
+function avg(a) { return a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0; }
 function stdev(a) {
   if (a.length < 2) return 0;
   const m = avg(a);
@@ -269,16 +312,17 @@ function stdev(a) {
 }
 
 function buildIndicators(tf = "M5") {
-  const c = candles[tf] || [];
+  const c = getDisplayCandles(tf);
+  const realCount = (candles[tf] || []).length;
   const len = c.length;
   const last = c[len - 1];
 
-  if (!last || len < 5) {
+  if (!last || !live.price) {
     return {
-      tf, signal: "WAIT", rawSignal: "WAIT", reason: "WAITING REALTIME CANDLES",
+      tf, signal: "WAIT", rawSignal: "WAIT", reason: "WAITING REALTIME DATA",
       score: 0, smn: 0, power: 0, delta: 0, rsi: 50, atr: 0, phase: "RANGING",
-      sideway: true, grade: "WAIT", tp: null, sl: null, candles: len, globalCvd,
-      acceptedTicks, rejectedTicks, lastRejectReason
+      sideway: true, grade: "WAIT", tp: null, sl: null, candles: realCount,
+      displayCandles: len, globalCvd, acceptedTicks, rejectedTicks, lastRejectReason
     };
   }
 
@@ -288,7 +332,10 @@ function buildIndicators(tf = "M5") {
   const ranges = c.slice(-20).map(x => Math.max(0, x.high - x.low));
 
   const r = rsi(closes);
-  const a = atr(c);
+  const aRaw = atr(c);
+  const fallbackAtr = Math.max(live.spread || 0, avg(ranges), 0.005);
+  const a = aRaw > 0 ? aRaw : fallbackAtr;
+
   const delta = last.delta;
   const smn = c.slice(-60).reduce((s, x) => s + x.delta, 0);
   const pwr = delta - ema(deltas.slice(-80), 21);
@@ -304,7 +351,7 @@ function buildIndicators(tf = "M5") {
   const rsiNorm = Math.min(1, Math.abs(r - 50) / 22);
 
   const atrPct = live.price ? a / live.price : 0;
-  const sideway = len < 20 || atrPct < 0.00018 || avgRange < Math.max(live.spread || 0, 0.0001) * 1.2;
+  const sideway = len < 12 || atrPct < 0.00010 || avgRange < Math.max(live.spread || 0, 0.0001) * 0.35;
 
   let phase = "RANGING";
   if (!sideway && smn > deltaStd * 2 && pwr > 0) phase = "ACCUMULATION";
@@ -327,7 +374,7 @@ function buildIndicators(tf = "M5") {
     candidate = "SELL";
     reason = "SMN + POWER + DELTA SELL CONFIRM";
   } else if (sideway) {
-    reason = "SIDEWAY / ATR LOW — NO TRADE";
+    reason = realCount < 6 ? "LIVE WARMUP — ĐANG GOM NẾN" : "SIDEWAY / ATR LOW — NO TRADE";
   } else if ((pwr > 0 && delta < 0) || (pwr < 0 && delta > 0)) {
     reason = "FLOW / DELTA NGƯỢC CHIỀU";
   } else if (score < 64) {
@@ -370,7 +417,8 @@ function buildIndicators(tf = "M5") {
     phase, sideway, grade,
     tp: tp == null ? null : Number(tp.toFixed(4)),
     sl: sl == null ? null : Number(sl.toFixed(4)),
-    candles: len,
+    candles: realCount,
+    displayCandles: len,
     globalCvd: Number(globalCvd.toFixed(2)),
     volRatio: Number(volRatio.toFixed(2)),
     barsSinceSignal: barsSince,
@@ -388,7 +436,7 @@ function connect() {
     wsStatus = "LIVE";
     lastError = "";
     subscribe();
-    console.log("[VYRO V37 FULL] connected:", FEED_SYMBOL);
+    console.log("[VYRO V38] connected:", FEED_SYMBOL);
   });
 
   ws.on("message", raw => {
@@ -399,13 +447,13 @@ function connect() {
   ws.on("error", err => {
     wsStatus = "ERROR";
     lastError = err.message;
-    console.error("[VYRO V37 FULL] WS error:", err.message);
+    console.error("[VYRO V38] WS error:", err.message);
   });
 
   ws.on("close", (code, reason) => {
     wsStatus = "RECONNECTING";
     lastError = `closed ${code} ${reason || ""}`;
-    console.warn("[VYRO V37 FULL] WS closed", code, reason.toString());
+    console.warn("[VYRO V38] WS closed", code, reason.toString());
     setTimeout(connect, 3000);
   });
 }
@@ -422,7 +470,8 @@ app.get("/api/health", (req, res) => {
     ok: true, status: wsStatus, msgPerSec,
     uptime: Math.floor((Date.now() - startedAt) / 1000),
     displaySymbol: DISPLAY_SYMBOL, feedSymbol: FEED_SYMBOL,
-    lastError, acceptedTicks, rejectedTicks, lastRejectReason
+    lastError, acceptedTicks, rejectedTicks, lastRejectReason,
+    tickTape: tickTape.length
   });
 });
 
@@ -441,11 +490,12 @@ app.get("/api/live", (req, res) => {
 
 app.get("/api/candles", (req, res) => {
   const tf = String(req.query.tf || "M5").toUpperCase();
-  res.json(candles[TF_MS[tf] ? tf : "M5"]);
+  const safeTf = TF_MS[tf] ? tf : "M5";
+  res.json(getDisplayCandles(safeTf));
 });
 
 app.use(express.static(path.join(__dirname, "../frontend")));
 app.get("*", (req, res) => res.sendFile(path.join(__dirname, "../frontend/index.html")));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("[VYRO V37 FULL] running on", PORT));
+app.listen(PORT, () => console.log("[VYRO V38] running on", PORT));

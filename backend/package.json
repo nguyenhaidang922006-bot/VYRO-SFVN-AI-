@@ -1,15 +1,13 @@
 {
-  "name": "vyro-sfvn-full-fixed-admin-clean",
-  "version": "8.0.0",
+  "name": "vyro-nsi-sfvn-realtime",
+  "version": "32.0.0",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.18.3",
-    "cors": "^2.8.5"
-  },
-  "engines": {
-    "node": ">=18"
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "ws": "^8.18.0"
   }
 }

@@ -8,14 +8,16 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// LOCK 1 SYMBOL ONLY
 const DISPLAY_SYMBOL = process.env.DISPLAY_SYMBOL || "F-XACM-NSI-202607";
+const FEED_SYMBOL = process.env.FEED_SYMBOL || "F-XACM-NSI-202607";
 const PRODUCT_NAME = process.env.PRODUCT_NAME || "Nano Silver 07/2026";
-const FEED_SYMBOLS = (process.env.FEED_SYMBOLS || "F-XACM-NSI-202607,SI5CON26")
-  .split(",").map(s => s.trim()).filter(Boolean);
 const PRICE_WS = process.env.SFVN_PRICE_WS || "wss://client-uat.mapsinfotech.com/v2/ws/maps/price";
 
 const TF_MS = { M1: 60000, M5: 300000, M15: 900000 };
 const MAX_CANDLES = 360;
+const MAX_NORMAL_SPREAD = Number(process.env.MAX_NORMAL_SPREAD || 0.12);
+const MAX_TICK_JUMP = Number(process.env.MAX_TICK_JUMP || 0.45);
 const SIGNAL_COOLDOWN_BARS = 4;
 
 let ws = null;
@@ -44,14 +46,17 @@ let live = {
 };
 
 let candles = { M1: [], M5: [], M15: [] };
-let lastPrice = null;
+let priceWindow = [];
+let lastAcceptedPrice = null;
 let globalCvd = 0;
+let rejectedTicks = 0;
+let acceptedTicks = 0;
 let lastSignal = {};
 let lastSignalBar = {};
 
-function n(v, fallback = 0) {
-  const x = Number(v);
-  return Number.isFinite(x) ? x : fallback;
+function num(v, fallback = 0) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
 }
 
 function decodeBase64Json(s) {
@@ -74,26 +79,54 @@ function parseWsPayload(raw) {
   return [];
 }
 
-function isAcceptedSymbol(s) {
-  if (!s) return false;
-  return FEED_SYMBOLS.includes(s) || String(s).includes("NSI") || String(s).includes("SI5");
+function median(arr) {
+  if (!arr.length) return null;
+  const a = [...arr].sort((x, y) => x - y);
+  const m = Math.floor(a.length / 2);
+  return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+}
+
+function acceptedSymbol(s) {
+  return String(s || "") === FEED_SYMBOL;
 }
 
 function subscribe() {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
-
-  for (const sym of FEED_SYMBOLS) {
-    ws.send(JSON.stringify({
-      key: { domainName: "", prefix: "", messageName: "subscribe", suffix: "v1", messageType: "tick_price" },
-      payload: `ticker@${sym}`
-    }));
-  }
-
-  // miniTicker backup, filter inside backend
   ws.send(JSON.stringify({
     key: { domainName: "", prefix: "", messageName: "subscribe", suffix: "v1", messageType: "tick_price" },
-    payload: "miniTicker"
+    payload: `ticker@${FEED_SYMBOL}`
   }));
+}
+
+function validateTick(tick, price, bid, ask) {
+  if (!acceptedSymbol(tick.s)) return { ok: false, reason: "symbol_mismatch" };
+
+  if (!Number.isFinite(price) || price <= 0) return { ok: false, reason: "bad_price" };
+  if (!Number.isFinite(bid) || !Number.isFinite(ask) || bid <= 0 || ask <= 0) return { ok: false, reason: "bad_bid_ask" };
+
+  const spread = Math.abs(ask - bid);
+  if (spread > MAX_NORMAL_SPREAD) return { ok: false, reason: "spread_too_wide" };
+
+  // NSI Nano Silver should be around tens, not 6.xx.
+  if (price < 20 || bid < 20 || ask < 20) return { ok: false, reason: "wrong_scale_low" };
+  if (price > 200 || bid > 200 || ask > 200) return { ok: false, reason: "wrong_scale_high" };
+
+  // Last price must not be far away from bid/ask mid.
+  const mid = (bid + ask) / 2;
+  if (Math.abs(price - mid) > 0.35) return { ok: false, reason: "price_not_near_bidask" };
+
+  // Reject one-off jump using rolling median after a few ticks.
+  const med = median(priceWindow);
+  if (med !== null && priceWindow.length >= 8 && Math.abs(price - med) > MAX_TICK_JUMP) {
+    return { ok: false, reason: "jump_vs_median" };
+  }
+
+  // Reject huge jump from last accepted tick.
+  if (lastAcceptedPrice !== null && Math.abs(price - lastAcceptedPrice) > MAX_TICK_JUMP) {
+    return { ok: false, reason: "jump_vs_last" };
+  }
+
+  return { ok: true, reason: "" };
 }
 
 function updateCandle(tf, ts, price, tickVol, signedVol, bid, ask) {
@@ -128,40 +161,48 @@ function updateCandle(tf, ts, price, tickVol, signedVol, bid, ask) {
 }
 
 function applyTick(tick) {
-  if (!isAcceptedSymbol(tick.s)) return;
+  const price = num(tick.lt ?? tick.c ?? tick.price ?? tick.last, NaN);
+  const bid = num(tick.b ?? tick.bid, NaN);
+  const ask = num(tick.a ?? tick.ask, NaN);
 
-  const price = n(tick.lt ?? tick.c ?? tick.price ?? tick.last, NaN);
-  if (!Number.isFinite(price) || price <= 0) return;
+  const check = validateTick(tick, price, bid, ask);
+  if (!check.ok) {
+    rejectedTicks++;
+    lastError = `reject ${check.reason}: ${tick.s || ""} ${price}`;
+    return;
+  }
 
-  const bid = n(tick.b ?? tick.bid, price);
-  const ask = n(tick.a ?? tick.ask, price);
-  const spread = Math.max(0, ask - bid);
+  acceptedTicks++;
 
-  // Reject obvious wrong-scale ticks if current session is already around 70-80
-  if (lastPrice && lastPrice > 40 && price < 20) return;
-  if (lastPrice && lastPrice < 20 && price > 40) return;
-
-  const open = n(tick.o, price);
-  const high = n(tick.h, price);
-  const low = n(tick.l, price);
-  const cVol = n(tick.cVol ?? tick.q, 0);
-  const volRaw = n(tick.vol ?? tick.v, 0);
-  const pct = n(tick.p, 0);
+  const open = num(tick.o, price);
+  const high = num(tick.h, price);
+  const low = num(tick.l, price);
+  const cVol = num(tick.cVol ?? tick.q, 0);
+  const volRaw = num(tick.vol ?? tick.v, 0);
+  const pct = num(tick.p, 0);
   const rawT = Number(tick.t);
   const ts = Number.isFinite(rawT) && rawT > 1e15 ? Math.floor(rawT / 1e6) : Date.now();
 
-  const direction = lastPrice == null ? 0 : price > lastPrice ? 1 : price < lastPrice ? -1 : 0;
+  const direction = lastAcceptedPrice == null ? 0 : price > lastAcceptedPrice ? 1 : price < lastAcceptedPrice ? -1 : 0;
   const tickVol = volRaw > 0 ? Math.min(volRaw, 5000) : 1;
   const signedVol = direction * tickVol;
   globalCvd += signedVol;
-  lastPrice = price;
+  lastAcceptedPrice = price;
+
+  priceWindow.push(price);
+  if (priceWindow.length > 30) priceWindow.shift();
 
   live = {
     displaySymbol: DISPLAY_SYMBOL,
     feedSymbol: tick.s || "",
     productName: PRODUCT_NAME,
-    price, bid, ask, spread,
-    open, high, low,
+    price,
+    bid,
+    ask,
+    spread: Math.abs(ask - bid),
+    open,
+    high,
+    low,
     vol: tickVol,
     cVol,
     pct,
@@ -172,7 +213,7 @@ function applyTick(tick) {
   Object.keys(TF_MS).forEach(tf => updateCandle(tf, ts, price, tickVol, signedVol, bid, ask));
 }
 
-function calcEMA(vals, period = 21) {
+function ema(vals, period = 21) {
   if (!vals.length) return 0;
   const k = 2 / (period + 1);
   let e = vals[0];
@@ -180,7 +221,7 @@ function calcEMA(vals, period = 21) {
   return e;
 }
 
-function calcRSI(vals, period = 14) {
+function rsi(vals, period = 14) {
   if (vals.length < period + 1) return 50;
   const arr = vals.slice(-period - 1);
   let gain = 0, loss = 0;
@@ -190,83 +231,81 @@ function calcRSI(vals, period = 14) {
     else loss -= d;
   }
   if (loss === 0) return 100;
-  const rs = gain / loss;
-  return 100 - 100 / (1 + rs);
+  return 100 - 100 / (1 + gain / loss);
 }
 
-function calcATR(c, period = 14) {
+function atr(c, period = 14) {
   if (c.length < period + 1) return 0;
   const arr = c.slice(-period - 1);
-  const tr = [];
+  let trs = [];
   for (let i = 1; i < arr.length; i++) {
     const cur = arr[i], prev = arr[i - 1];
-    tr.push(Math.max(cur.high - cur.low, Math.abs(cur.high - prev.close), Math.abs(cur.low - prev.close)));
+    trs.push(Math.max(cur.high - cur.low, Math.abs(cur.high - prev.close), Math.abs(cur.low - prev.close)));
   }
-  return tr.reduce((a, b) => a + b, 0) / tr.length;
+  return trs.reduce((a, b) => a + b, 0) / trs.length;
 }
 
-function avg(arr) {
-  if (!arr.length) return 0;
-  return arr.reduce((a,b)=>a+b,0)/arr.length;
+function avg(a) {
+  return a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
 }
 
-function stdev(arr) {
-  if (arr.length < 2) return 0;
-  const m = avg(arr);
-  return Math.sqrt(avg(arr.map(x => (x-m)*(x-m))));
+function stdev(a) {
+  if (a.length < 2) return 0;
+  const m = avg(a);
+  return Math.sqrt(avg(a.map(x => (x - m) * (x - m))));
 }
 
 function buildIndicators(tf = "M5") {
   const c = candles[tf] || [];
   const len = c.length;
-  const closes = c.map(x => x.close);
-  const highs = c.map(x => x.high);
-  const lows = c.map(x => x.low);
-  const deltas = c.map(x => x.delta);
-  const vols = c.map(x => x.volume);
   const last = c[len - 1];
 
   if (!last || len < 5) {
     return {
-      tf, signal: "WAIT", reason: "WAITING REALTIME CANDLES",
+      tf, signal: "WAIT", rawSignal: "WAIT", reason: "WAITING REALTIME CANDLES",
       score: 0, smn: 0, power: 0, delta: 0, rsi: 50, atr: 0, phase: "RANGING",
-      sideway: true, grade: "WAIT", tp: null, sl: null, candles: len, globalCvd
+      sideway: true, grade: "WAIT", tp: null, sl: null, candles: len, globalCvd,
+      acceptedTicks, rejectedTicks
     };
   }
 
-  const rsi = calcRSI(closes);
-  const atr = calcATR(c);
-  const delta = last.delta;
-  const smn = c.slice(-60).reduce((s,x)=>s+x.delta,0);
-  const emaDelta = calcEMA(deltas.slice(-80), 21);
-  const powerRaw = delta - emaDelta;
+  const closes = c.map(x => x.close);
+  const deltas = c.map(x => x.delta);
+  const vols = c.map(x => x.volume);
+  const ranges = c.slice(-20).map(x => Math.max(0, x.high - x.low));
 
-  const recentRanges = c.slice(-20).map(x => Math.max(0, x.high - x.low));
-  const avgRange = avg(recentRanges);
+  const r = rsi(closes);
+  const a = atr(c);
+  const delta = last.delta;
+  const smn = c.slice(-60).reduce((s, x) => s + x.delta, 0);
+  const pwr = delta - ema(deltas.slice(-80), 21);
+
+  const deltaStd = Math.max(1, stdev(deltas.slice(-60)));
   const avgVol = Math.max(1, avg(vols.slice(-30)));
   const volRatio = last.volume / avgVol;
-  const deltaStd = Math.max(1, stdev(deltas.slice(-60)));
-  const powerNorm = Math.min(1, Math.abs(powerRaw) / (deltaStd * 1.8));
+  const avgRange = avg(ranges);
+
+  const powerNorm = Math.min(1, Math.abs(pwr) / (deltaStd * 1.8));
   const deltaNorm = Math.min(1, Math.abs(delta) / (deltaStd * 1.3));
   const volNorm = Math.min(1, Math.max(0, volRatio - 0.7) / 1.4);
-  const rsiNorm = Math.min(1, Math.abs(rsi - 50) / 22);
+  const rsiNorm = Math.min(1, Math.abs(r - 50) / 22);
 
-  const atrPct = live.price ? atr / live.price : 0;
+  const atrPct = live.price ? a / live.price : 0;
   const sideway = len < 20 || atrPct < 0.00018 || avgRange < Math.max(live.spread || 0, 0.0001) * 1.6;
 
   let phase = "RANGING";
-  if (!sideway && smn > deltaStd * 2 && powerRaw > 0) phase = "ACCUMULATION";
-  if (!sideway && smn < -deltaStd * 2 && powerRaw < 0) phase = "DISTRIBUTION";
-  if (!sideway && Math.abs(powerRaw) > deltaStd * 1.5) phase = powerRaw > 0 ? "MARKUP" : "MARKDOWN";
+  if (!sideway && smn > deltaStd * 2 && pwr > 0) phase = "ACCUMULATION";
+  if (!sideway && smn < -deltaStd * 2 && pwr < 0) phase = "DISTRIBUTION";
+  if (!sideway && Math.abs(pwr) > deltaStd * 1.5) phase = pwr > 0 ? "MARKUP" : "MARKDOWN";
 
-  const baseScore = (powerNorm * 0.36 + deltaNorm * 0.28 + volNorm * 0.18 + rsiNorm * 0.18) * 100;
-  const score = sideway ? Math.min(35, baseScore) : Math.round(Math.max(0, Math.min(92, baseScore)));
+  const rawScore = (powerNorm * 0.36 + deltaNorm * 0.28 + volNorm * 0.18 + rsiNorm * 0.18) * 100;
+  const score = sideway ? Math.min(35, Math.round(rawScore)) : Math.round(Math.max(0, Math.min(92, rawScore)));
 
   let candidate = "WAIT";
   let reason = "WAITING FOR CONFIRM";
 
-  const buyOK = !sideway && score >= 64 && powerRaw > 0 && delta > 0 && smn >= 0 && rsi >= 51 && rsi <= 72;
-  const sellOK = !sideway && score >= 64 && powerRaw < 0 && delta < 0 && smn <= 0 && rsi <= 49 && rsi >= 28;
+  const buyOK = !sideway && score >= 64 && pwr > 0 && delta > 0 && smn >= 0 && r >= 51 && r <= 72;
+  const sellOK = !sideway && score >= 64 && pwr < 0 && delta < 0 && smn <= 0 && r <= 49 && r >= 28;
 
   if (buyOK) {
     candidate = "BUY";
@@ -276,7 +315,7 @@ function buildIndicators(tf = "M5") {
     reason = "SMN + POWER + DELTA SELL CONFIRM";
   } else if (sideway) {
     reason = "SIDEWAY / ATR LOW — NO TRADE";
-  } else if ((powerRaw > 0 && delta < 0) || (powerRaw < 0 && delta > 0)) {
+  } else if ((pwr > 0 && delta < 0) || (pwr < 0 && delta > 0)) {
     reason = "FLOW / DELTA NGƯỢC CHIỀU";
   } else if (score < 64) {
     reason = "AI POWER CHƯA ĐỦ MẠNH";
@@ -285,13 +324,11 @@ function buildIndicators(tf = "M5") {
   const barKey = last.time;
   const prevSignal = lastSignal[tf] || "WAIT";
   const prevBar = lastSignalBar[tf] || 0;
-  let signal = candidate;
-
-  // Anti-spam: only allow reversal or new signal after cooldown bars.
   const currentIndex = c.length - 1;
   const lastIndex = c.findIndex(x => x.time === prevBar);
   const barsSince = lastIndex >= 0 ? currentIndex - lastIndex : 999;
 
+  let signal = candidate;
   if (candidate !== "WAIT") {
     if (prevSignal !== "WAIT" && prevSignal !== candidate && barsSince < SIGNAL_COOLDOWN_BARS) {
       signal = "WAIT";
@@ -305,25 +342,27 @@ function buildIndicators(tf = "M5") {
   }
 
   const price = live.price || 0;
-  const tp = signal === "BUY" ? price + atr * 2 : signal === "SELL" ? price - atr * 2 : null;
-  const sl = signal === "BUY" ? price - atr * 1.2 : signal === "SELL" ? price + atr * 1.2 : null;
+  const tp = signal === "BUY" ? price + a * 2 : signal === "SELL" ? price - a * 2 : null;
+  const sl = signal === "BUY" ? price - a * 1.2 : signal === "SELL" ? price + a * 1.2 : null;
   const grade = score >= 80 ? "A STRONG" : score >= 64 ? "B GOOD" : score >= 45 ? "C WATCH" : "WAIT";
 
   return {
     tf, signal, rawSignal: candidate, reason,
     score,
     smn: Number(smn.toFixed(2)),
-    power: Number(powerRaw.toFixed(2)),
+    power: Number(pwr.toFixed(2)),
     delta: Number(delta.toFixed(2)),
-    rsi: Number(rsi.toFixed(1)),
-    atr: Number(atr.toFixed(4)),
+    rsi: Number(r.toFixed(1)),
+    atr: Number(a.toFixed(4)),
     phase, sideway, grade,
     tp: tp == null ? null : Number(tp.toFixed(4)),
     sl: sl == null ? null : Number(sl.toFixed(4)),
     candles: len,
     globalCvd: Number(globalCvd.toFixed(2)),
     volRatio: Number(volRatio.toFixed(2)),
-    barsSinceSignal: barsSince
+    barsSinceSignal: barsSince,
+    acceptedTicks,
+    rejectedTicks
   };
 }
 
@@ -335,7 +374,7 @@ function connect() {
     wsStatus = "LIVE";
     lastError = "";
     subscribe();
-    console.log("[VYRO V34] SFVN connected", PRICE_WS, FEED_SYMBOLS);
+    console.log("[VYRO V35] locked symbol connected:", FEED_SYMBOL);
   });
 
   ws.on("message", raw => {
@@ -346,13 +385,13 @@ function connect() {
   ws.on("error", err => {
     wsStatus = "ERROR";
     lastError = err.message;
-    console.error("[VYRO V34] WS error", err.message);
+    console.error("[VYRO V35] WS error:", err.message);
   });
 
   ws.on("close", (code, reason) => {
     wsStatus = "RECONNECTING";
     lastError = `closed ${code} ${reason || ""}`;
-    console.warn("[VYRO V34] WS closed", code, reason.toString());
+    console.warn("[VYRO V35] WS closed", code, reason.toString());
     setTimeout(connect, 3000);
   });
 }
@@ -364,11 +403,16 @@ setInterval(() => {
 
 connect();
 
-app.get("/api/health", (req,res) => {
-  res.json({ok:true, status:wsStatus, msgPerSec, uptime:Math.floor((Date.now()-startedAt)/1000), lastError, feedSymbols:FEED_SYMBOLS});
+app.get("/api/health", (req, res) => {
+  res.json({
+    ok: true, status: wsStatus, msgPerSec,
+    uptime: Math.floor((Date.now() - startedAt) / 1000),
+    displaySymbol: DISPLAY_SYMBOL, feedSymbol: FEED_SYMBOL,
+    lastError, acceptedTicks, rejectedTicks
+  });
 });
 
-app.get("/api/live", (req,res) => {
+app.get("/api/live", (req, res) => {
   const tf = String(req.query.tf || "M5").toUpperCase();
   const safeTf = TF_MS[tf] ? tf : "M5";
   res.json({
@@ -381,13 +425,13 @@ app.get("/api/live", (req,res) => {
   });
 });
 
-app.get("/api/candles", (req,res) => {
+app.get("/api/candles", (req, res) => {
   const tf = String(req.query.tf || "M5").toUpperCase();
   res.json(candles[TF_MS[tf] ? tf : "M5"]);
 });
 
 app.use(express.static(path.join(__dirname, "../frontend")));
-app.get("*", (req,res) => res.sendFile(path.join(__dirname, "../frontend/index.html")));
+app.get("*", (req, res) => res.sendFile(path.join(__dirname, "../frontend/index.html")));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("[VYRO V34] running on", PORT));
+app.listen(PORT, () => console.log("[VYRO V35] running on", PORT));

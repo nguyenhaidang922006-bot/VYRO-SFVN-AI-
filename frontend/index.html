@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>VYRO NSI V43 — True Streaming Chart</title>
+<title>VYRO NSI V43 — Real Candle Chart Fix</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#0b0e11;color:#eaecef;font-family:'Segoe UI',sans-serif;padding:16px}
@@ -24,12 +24,12 @@ canvas{width:100%;height:500px;display:block;background:#0b0e11}
 .mq5-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}.mq5-title{font-size:10px;color:#f0b90b;letter-spacing:2px;margin-bottom:8px;font-weight:900}.mq5-box{background:#0b0e11;border-radius:5px;padding:10px 12px;font-family:'Courier New',monospace;font-size:11px;color:#00ffcc;word-break:break-all;line-height:1.6;min-height:40px;max-height:170px;overflow:auto}.log-wrap{margin-top:14px}.log-box{background:#0b0e11;height:120px;overflow:auto;padding:10px 12px;border-radius:4px;font-family:'Courier New',monospace;font-size:11px;line-height:1.75}.log-info{color:#00ffcc}.log-warn{color:#f0b90b}.log-err{color:#ff6b6b}.log-sys{color:#555e6d}
 </style>
 </head><body><div class="wrap">
-<header><div class="logo"><h1>⚡ VYRO NSI GATEWAY V43</h1><p>True Streaming Chart — no flicker, live candle buffer, EMA/volume layers</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><div class="badge"><span class="ws-dot" id="ws-dot"></span><span id="ws-label">CONNECTING</span></div><div class="badge"><span id="ws-count">0 msg/s</span></div><div class="badge"><span id="last-time">--:--:--</span></div><div class="badge"><span id="uptime">0s</span></div></div></header>
+<header><div class="logo"><h1>⚡ VYRO NSI GATEWAY V44</h1><p>Real Candle Chart Fix — no micro zigzag, EMA smooth, terminal style</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><div class="badge"><span class="ws-dot" id="ws-dot"></span><span id="ws-label">CONNECTING</span></div><div class="badge"><span id="ws-count">0 msg/s</span></div><div class="badge"><span id="last-time">--:--:--</span></div><div class="badge"><span id="uptime">0s</span></div></div></header>
 <div class="controls"><button class="ctrl-tab active">F-XACM-NSI-202607</button><button class="ctrl-tab active" onclick="switchTF('M1',this)">M1</button><button class="ctrl-tab" onclick="switchTF('M5',this)">M5</button><button class="ctrl-tab" onclick="switchTF('M15',this)">M15</button></div>
 <div class="product"><div><div class="psym" id="feed-symbol">F-XACM-NSI-202607</div><div class="pname">Nano Silver 07/2026</div><div class="pmeta">Bid <span id="bid">--</span> / Ask <span id="ask">--</span> • Spread <span id="spread">--</span></div></div><div class="pprice" id="price">--</div></div>
 <div class="big-signal wait" id="big-signal"><div class="sig-left"><div class="sig-icon" id="sig-icon">⏳</div><div><div class="sig-decision wait" id="sig-decision">WAIT</div><div class="sig-reason" id="sig-reason">Đang chờ dữ liệu realtime...</div><div style="display:flex;gap:14px;margin-top:8px;font-size:11px;font-family:'Courier New',monospace;color:#848e9c;flex-wrap:wrap"><span>RSI: <strong id="sig-rsi">--</strong></span><span>ATR: <strong id="sig-atr">--</strong></span><span>PHASE: <strong id="sig-phase">--</strong></span></div></div></div><div><div class="sig-power-label">AI POWER</div><div class="sig-power-val" id="sig-power">--%</div></div></div>
 <div class="tpsl"><div class="tcard tp"><div class="tlabel">TAKE PROFIT ATR×2.0</div><div class="tval" id="tp-val">--</div></div><div class="tcard sl"><div class="tlabel">STOP LOSS ATR×1.2</div><div class="tval" id="sl-val">--</div></div></div>
-<div class="main"><div class="chart-box"><div class="chart-head"><span class="chart-title">📊 STREAMING CHART — <span id="chart-sym">F-XACM-NSI-202607 M1</span></span><div class="chart-actions"><button class="mini-btn active" id="lock-btn" onclick="toggleScaleLock()">SCALE LOCK</button><button class="mini-btn" onclick="zoomBars(70)">70</button><button class="mini-btn active" onclick="zoomBars(120)">120</button><button class="mini-btn" onclick="zoomBars(180)">180</button></div></div><div id="chartWrap"><canvas id="chart"></canvas></div></div><div class="panel"><div class="panel-title">📈 PANEL METRICS NSI</div><div class="metric-row"><span class="ml">PRICE</span><span class="mv warn" id="m-price">--</span></div><div class="metric-row"><span class="ml">SMN</span><span class="mv" id="m-smn">--</span></div><div class="metric-row"><span class="ml">POWER</span><span class="mv" id="m-power">--</span></div><div class="metric-row"><span class="ml">DELTA</span><span class="mv" id="m-delta">--</span></div><div class="metric-row"><span class="ml">RSI 14</span><span class="mv" id="m-rsi">--</span></div><div class="metric-row"><span class="ml">ATR 14</span><span class="mv" id="m-atr">--</span></div><div class="metric-row"><span class="ml">PHASE</span><span class="mv warn" id="m-phase">--</span></div><div class="metric-row"><span class="ml">GRADE</span><span class="mv warn" id="m-grade">--</span></div><div class="metric-row"><span class="ml">BOS / CHOCH</span><span class="mv warn" id="m-bos">--</span></div><div class="metric-row"><span class="ml">LIQUIDITY</span><span class="mv warn" id="m-liq">--</span></div><div class="metric-row"><span class="ml">FAKE BREAKOUT</span><span class="mv muted" id="m-fake">--</span></div><div class="metric-row"><span class="ml">SMART BIAS</span><span class="mv warn" id="m-bias">--</span></div><div class="metric-row"><span class="ml">EMA 8 / EMA 21</span><span class="mv warn" id="m-ema">--</span></div><div class="metric-row"><span class="ml">EMA CROSS</span><span class="mv warn" id="m-emacross">--</span></div><div class="metric-row"><span class="ml">REAL / DISPLAY CANDLES</span><span class="mv muted" id="m-candles">0 / 0</span></div><div class="metric-row"><span class="ml">ACCEPT / REJECT</span><span class="mv muted" id="m-accept">0 / 0</span></div></div></div>
+<div class="main"><div class="chart-box"><div class="chart-head"><span class="chart-title">📊 REAL CANDLE CHART — <span id="chart-sym">F-XACM-NSI-202607 M1</span></span><div class="chart-actions"><button class="mini-btn active" id="lock-btn" onclick="toggleScaleLock()">SCALE LOCK</button><button class="mini-btn" onclick="zoomBars(70)">70</button><button class="mini-btn active" onclick="zoomBars(120)">120</button><button class="mini-btn" onclick="zoomBars(180)">180</button></div></div><div id="chartWrap"><canvas id="chart"></canvas></div></div><div class="panel"><div class="panel-title">📈 PANEL METRICS NSI</div><div class="metric-row"><span class="ml">PRICE</span><span class="mv warn" id="m-price">--</span></div><div class="metric-row"><span class="ml">SMN</span><span class="mv" id="m-smn">--</span></div><div class="metric-row"><span class="ml">POWER</span><span class="mv" id="m-power">--</span></div><div class="metric-row"><span class="ml">DELTA</span><span class="mv" id="m-delta">--</span></div><div class="metric-row"><span class="ml">RSI 14</span><span class="mv" id="m-rsi">--</span></div><div class="metric-row"><span class="ml">ATR 14</span><span class="mv" id="m-atr">--</span></div><div class="metric-row"><span class="ml">PHASE</span><span class="mv warn" id="m-phase">--</span></div><div class="metric-row"><span class="ml">GRADE</span><span class="mv warn" id="m-grade">--</span></div><div class="metric-row"><span class="ml">BOS / CHOCH</span><span class="mv warn" id="m-bos">--</span></div><div class="metric-row"><span class="ml">LIQUIDITY</span><span class="mv warn" id="m-liq">--</span></div><div class="metric-row"><span class="ml">FAKE BREAKOUT</span><span class="mv muted" id="m-fake">--</span></div><div class="metric-row"><span class="ml">SMART BIAS</span><span class="mv warn" id="m-bias">--</span></div><div class="metric-row"><span class="ml">EMA 8 / EMA 21</span><span class="mv warn" id="m-ema">--</span></div><div class="metric-row"><span class="ml">EMA CROSS</span><span class="mv warn" id="m-emacross">--</span></div><div class="metric-row"><span class="ml">REAL / DISPLAY CANDLES</span><span class="mv muted" id="m-candles">0 / 0</span></div><div class="metric-row"><span class="ml">ACCEPT / REJECT</span><span class="mv muted" id="m-accept">0 / 0</span></div></div></div>
 <div class="mq5-row"><div class="mq5"><div class="mq5-title">🔌 VYRO_CMD</div><div class="mq5-box" id="mq5-cmd">WAIT_FOR_NSI</div></div><div class="mq5"><div class="mq5-title">📦 JSON PAYLOAD</div><div class="mq5-box" id="mq5-json">{}</div></div></div>
 <div class="log-wrap"><div class="panel-title">📡 STREAM LOG</div><div class="log-box" id="log"></div></div></div>
 <script>
@@ -93,7 +93,8 @@ function renderChart(){
  // background gradient
  const grd=ctx.createLinearGradient(0,0,0,H);grd.addColorStop(0,'#101820');grd.addColorStop(1,'#0b0e11');ctx.fillStyle=grd;ctx.fillRect(0,0,W,H);
  const padL=6,padR=84,padT=20,padB=38,volH=118,priceH=H-padT-padB-volH,rightSpace=28;
- if(!candleCache.length){ctx.fillStyle='#848e9c';ctx.font='18px Arial';ctx.fillText('Waiting for true streaming candles...',30,60);return}
+ if(!candleCache.length){ctx.fillStyle='#848e9c';ctx.font='18px Arial';ctx.fillText('Waiting for real M1/M5 candles...',30,60);return}
+ if(candleCache.length<2){ctx.fillStyle='#848e9c';ctx.font='18px Arial';ctx.fillText('Waiting second real candle...',30,60);}
  const data=candleCache.slice(-visibleBars);
  const sc=calcScale(data), min=sc.min, max=sc.max;
  const plotW=W-padL-padR-rightSpace, xStep=plotW/visibleBars, bodyW=Math.max(2.5,Math.min(7.5,xStep*0.48));
@@ -109,13 +110,15 @@ function renderChart(){
    const vh=((Number(c.volume)||1)/maxVol)*volH; ctx.fillStyle=color;ctx.fillRect(x-bodyW/2,volBase-vh,bodyW,vh);
  });
  // EMA layer
- function drawLine(key,color,width=1.7){
-   ctx.strokeStyle=color;ctx.lineWidth=width;ctx.setLineDash([]);let started=false;ctx.beginPath();
-   data.forEach((c,i)=>{const val=Number(c[key]);if(!Number.isFinite(val))return;const x=padL+i*xStep+xStep/2, yy=y(val);if(!started){ctx.moveTo(x,yy);started=true}else ctx.lineTo(x,yy)});
-   if(started)ctx.stroke();
+ function drawLine(key,color,width=1.7,minPoints=5){
+   const pts=data.map((c,i)=>({i,val:Number(c[key])})).filter(p=>Number.isFinite(p.val));
+   if(pts.length<minPoints) return;
+   ctx.strokeStyle=color;ctx.lineWidth=width;ctx.setLineDash([]);ctx.beginPath();
+   pts.forEach((p,j)=>{const x=padL+p.i*xStep+xStep/2, yy=y(p.val); if(j===0)ctx.moveTo(x,yy); else ctx.lineTo(x,yy);});
+   ctx.stroke();
  }
- drawLine('emaSlow','rgba(255,168,90,.95)',2.2);
- drawLine('emaFast','rgba(92,220,255,.96)',1.8);
+ drawLine('emaSlow','rgba(255,168,90,.95)',2.2,21);
+ drawLine('emaFast','rgba(92,220,255,.96)',1.8,8);
  // candle layer
  data.forEach((c,i)=>{
    const x=padL+i*xStep+xStep/2, open=Number(c.open), high=Number(c.high), low=Number(c.low), close=Number(c.close);
@@ -123,7 +126,7 @@ function renderChart(){
    ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=1.2;
    ctx.beginPath();ctx.moveTo(x,y(high));ctx.lineTo(x,y(low));ctx.stroke();
    const top=Math.min(y(open),y(close)), bot=Math.max(y(open),y(close));
-   ctx.fillRect(x-bodyW/2,top,bodyW,Math.max(2,bot-top));
+   ctx.fillRect(x-bodyW/2,top,bodyW,Math.max(3,bot-top));
  });
  // levels: current, TP SL BSL SSL
  const last=data[data.length-1].close;
@@ -144,7 +147,7 @@ function renderChart(){
 function updateUI(res){
  const live=res.live||{},ind=res.indicators||{},online=res.status==='LIVE'; lastIndicators=ind; if(live.price) lastGoodLive=live;
  document.getElementById('ws-dot').classList.toggle('on',online);document.getElementById('ws-label').textContent=res.status||'--';document.getElementById('ws-count').textContent=(res.msgPerSec||0)+' msg/s';document.getElementById('uptime').textContent=(res.uptime||0)+'s';document.getElementById('last-time').textContent=live.updatedAt?new Date(live.updatedAt).toLocaleTimeString('vi-VN'):'--';
- document.getElementById('feed-symbol').textContent=(live.feedSymbol||'F-XACM-NSI-202607')+' → BID/SELL STREAM';
+ document.getElementById('feed-symbol').textContent=(live.feedSymbol||'F-XACM-NSI-202607')+' → BID/SELL REAL CANDLE';
  document.getElementById('price').textContent=n(live.price);document.getElementById('bid').textContent=n(live.bid);document.getElementById('ask').textContent=n(live.ask);document.getElementById('spread').textContent=n(live.spread);
  const decision=ind.signal||'WAIT',c=decision==='BUY'?'buy':decision==='SELL'?'sell':'wait';document.getElementById('big-signal').className='big-signal '+c;document.getElementById('sig-icon').textContent=decision==='BUY'?'🟢':decision==='SELL'?'🔴':'⏳';
  const de=document.getElementById('sig-decision');de.className='sig-decision '+c;de.textContent=decision==='BUY'?'▲ BUY NOW':decision==='SELL'?'▼ SELL NOW':'⏳ WAIT';
@@ -155,20 +158,20 @@ function updateUI(res){
  set('m-bos',(ind.bos||'NONE')+' / '+(ind.choch||'NONE'),'warn');set('m-liq',ind.liquidity||'NONE','warn');set('m-fake',ind.fakeBreakout?'YES':'NO',ind.fakeBreakout?'dn':'up');set('m-bias',ind.smartBias||'NEUTRAL',(ind.smartBias==='BULLISH'?'up':ind.smartBias==='BEARISH'?'dn':'warn'));
  set('m-ema',(ind.emaFast??'--')+' / '+(ind.emaSlow??'--'),(ind.emaBias==='BULLISH'?'up':ind.emaBias==='BEARISH'?'dn':'warn'));set('m-emacross',ind.emaCross||'NONE',(ind.emaCross==='BULLISH CROSS'?'up':ind.emaCross==='BEARISH CROSS'?'dn':'warn'));
  set('m-candles',(ind.candles??0)+' / '+(ind.displayCandles??0),'muted');set('m-accept',(ind.acceptedTicks??0)+' / '+(ind.rejectedTicks??0),'muted');
- lastPayload={source:'VYRO_NSI_V43',symbol:'F-XACM-NSI-202607',price:live.price,bid:live.bid,ask:live.ask,signal:decision,score:ind.score,bos:ind.bos,choch:ind.choch,liquidity:ind.liquidity,fakeBreakout:ind.fakeBreakout,smartBias:ind.smartBias,emaFast:ind.emaFast,emaSlow:ind.emaSlow,emaCross:ind.emaCross,emaBias:ind.emaBias,tf:currentTF,updatedAt:live.updatedAt};
+ lastPayload={source:'VYRO_NSI_V44',symbol:'F-XACM-NSI-202607',price:live.price,bid:live.bid,ask:live.ask,signal:decision,score:ind.score,bos:ind.bos,choch:ind.choch,liquidity:ind.liquidity,fakeBreakout:ind.fakeBreakout,smartBias:ind.smartBias,emaFast:ind.emaFast,emaSlow:ind.emaSlow,emaCross:ind.emaCross,emaBias:ind.emaBias,tf:currentTF,updatedAt:live.updatedAt};
  document.getElementById('mq5-cmd').textContent=`VYRO_${decision}_NSI_${currentTF}_PWR${ind.score||0}_TP${ind.tp||'--'}_SL${ind.sl||'--'}`;
  document.getElementById('mq5-json').textContent=JSON.stringify(lastPayload,null,2);
 }
 
 async function loadAll(force=false){
  try{
-   const [a,b]=await Promise.all([fetch('/api/live?tf='+currentTF,{cache:'no-store'}),fetch('/api/candles?tf='+currentTF,{cache:'no-store'})]);
+   const [a,b]=await Promise.all([fetch('/api/live?tf='+currentTF,{cache:'no-store'}),fetch('/api/real-candles?tf='+currentTF,{cache:'no-store'})]);
    const res=await a.json(), incoming=await b.json();
    updateUI(res); mergeCandles(incoming); renderChart();
    if(res.lastError) log(res.lastError,'warn');
  }catch(e){log('API error: '+e.message,'err')}
 }
 function loop(){renderChart();requestAnimationFrame(loop)}
-log('[SYSTEM] VYRO NSI V43 true streaming chart khởi động...','sys');
+log('[SYSTEM] VYRO NSI V44 real candle chart fix khởi động...','sys');
 setInterval(loadAll,900);window.addEventListener('resize',()=>renderChart());loadAll(true);requestAnimationFrame(loop);
 </script></body></html>

@@ -127,7 +127,7 @@ function median(arr) {
   return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
 }
 
-// V43: Always use mid(Bid/Ask) first. SFVN last/lt can be stale.
+// V44: Always use mid(Bid/Ask) first. SFVN last/lt can be stale.
 function normalizeTick(tick) {
   const bid = num(tick.b ?? tick.bid);
   const ask = num(tick.a ?? tick.ask);
@@ -639,7 +639,7 @@ function connect() {
     wsStatus = "LIVE";
     lastError = "";
     subscribe();
-    console.log("[VYRO V43] connected:", FEED_SYMBOL);
+    console.log("[VYRO V44] connected:", FEED_SYMBOL);
   });
 
   ws.on("message", raw => {
@@ -650,13 +650,13 @@ function connect() {
   ws.on("error", err => {
     wsStatus = "ERROR";
     lastError = err.message;
-    console.error("[VYRO V43] WS error:", err.message);
+    console.error("[VYRO V44] WS error:", err.message);
   });
 
   ws.on("close", (code, reason) => {
     wsStatus = "RECONNECTING";
     lastError = `closed ${code} ${reason || ""}`;
-    console.warn("[VYRO V43] WS closed", code, reason.toString());
+    console.warn("[VYRO V44] WS closed", code, reason.toString());
     setTimeout(connect, 3000);
   });
 }
@@ -710,8 +710,16 @@ app.get("/api/candles", (req, res) => {
   res.json(enrichCandlesWithEMA(getDisplayCandles(safeTf)));
 });
 
+// V44: chart must use real timeframe candles only.
+// Micro candles are still available for AI warmup, but not for chart rendering.
+app.get("/api/real-candles", (req, res) => {
+  const tf = String(req.query.tf || "M1").toUpperCase();
+  const safeTf = TF_MS[tf] ? tf : "M1";
+  res.json(enrichCandlesWithEMA(candles[safeTf] || []));
+});
+
 app.use(express.static(path.join(__dirname, "../frontend")));
 app.get("*", (req, res) => res.sendFile(path.join(__dirname, "../frontend/index.html")));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("[VYRO V43] running on", PORT));
+app.listen(PORT, () => console.log("[VYRO V44] running on", PORT));

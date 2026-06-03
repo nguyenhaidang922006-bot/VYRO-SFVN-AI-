@@ -8,7 +8,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// LOCK 1 SYMBOL ONLY
 const DISPLAY_SYMBOL = process.env.DISPLAY_SYMBOL || "F-XACM-NSI-202607";
 const FEED_SYMBOL = process.env.FEED_SYMBOL || "F-XACM-NSI-202607";
 const PRODUCT_NAME = process.env.PRODUCT_NAME || "Nano Silver 07/2026";
@@ -16,8 +15,8 @@ const PRICE_WS = process.env.SFVN_PRICE_WS || "wss://client-uat.mapsinfotech.com
 
 const TF_MS = { M1: 60000, M5: 300000, M15: 900000 };
 const MAX_CANDLES = 360;
-const MAX_NORMAL_SPREAD = Number(process.env.MAX_NORMAL_SPREAD || 0.12);
-const MAX_TICK_JUMP = Number(process.env.MAX_TICK_JUMP || 0.45);
+const MAX_NORMAL_SPREAD = Number(process.env.MAX_NORMAL_SPREAD || 2.5);
+const MAX_TICK_JUMP = Number(process.env.MAX_TICK_JUMP || 3.0);
 const SIGNAL_COOLDOWN_BARS = 4;
 
 let ws = null;
@@ -53,8 +52,9 @@ let rejectedTicks = 0;
 let acceptedTicks = 0;
 let lastSignal = {};
 let lastSignalBar = {};
+let lastRejectReason = "";
 
-function num(v, fallback = 0) {
+function num(v, fallback = NaN) {
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
 }
@@ -98,30 +98,37 @@ function subscribe() {
   }));
 }
 
+function normalizePrice(tick) {
+  let price = num(tick.lt ?? tick.c ?? tick.price ?? tick.last);
+  const bid = num(tick.b ?? tick.bid);
+  const ask = num(tick.a ?? tick.ask);
+
+  // If last price is missing or bad but bid/ask exist, use mid price.
+  if ((!Number.isFinite(price) || price <= 0) && Number.isFinite(bid) && Number.isFinite(ask) && bid > 0 && ask > 0) {
+    price = (bid + ask) / 2;
+  }
+
+  return { price, bid, ask };
+}
+
 function validateTick(tick, price, bid, ask) {
   if (!acceptedSymbol(tick.s)) return { ok: false, reason: "symbol_mismatch" };
-
   if (!Number.isFinite(price) || price <= 0) return { ok: false, reason: "bad_price" };
-  if (!Number.isFinite(bid) || !Number.isFinite(ask) || bid <= 0 || ask <= 0) return { ok: false, reason: "bad_bid_ask" };
-
-  const spread = Math.abs(ask - bid);
-  if (spread > MAX_NORMAL_SPREAD) return { ok: false, reason: "spread_too_wide" };
 
   // NSI Nano Silver should be around tens, not 6.xx.
-  if (price < 20 || bid < 20 || ask < 20) return { ok: false, reason: "wrong_scale_low" };
-  if (price > 200 || bid > 200 || ask > 200) return { ok: false, reason: "wrong_scale_high" };
+  if (price < 20) return { ok: false, reason: "wrong_scale_low" };
+  if (price > 200) return { ok: false, reason: "wrong_scale_high" };
 
-  // Last price must not be far away from bid/ask mid.
-  const mid = (bid + ask) / 2;
-  if (Math.abs(price - mid) > 0.35) return { ok: false, reason: "price_not_near_bidask" };
+  // Bid/ask can lag or be absent on SFVN, so do not reject if they are weird.
+  if (Number.isFinite(bid) && Number.isFinite(ask) && bid > 0 && ask > 0) {
+    const spread = Math.abs(ask - bid);
+    if (spread > MAX_NORMAL_SPREAD) return { ok: false, reason: "spread_too_wide" };
+  }
 
-  // Reject one-off jump using rolling median after a few ticks.
   const med = median(priceWindow);
   if (med !== null && priceWindow.length >= 8 && Math.abs(price - med) > MAX_TICK_JUMP) {
     return { ok: false, reason: "jump_vs_median" };
   }
-
-  // Reject huge jump from last accepted tick.
   if (lastAcceptedPrice !== null && Math.abs(price - lastAcceptedPrice) > MAX_TICK_JUMP) {
     return { ok: false, reason: "jump_vs_last" };
   }
@@ -161,19 +168,21 @@ function updateCandle(tf, ts, price, tickVol, signedVol, bid, ask) {
 }
 
 function applyTick(tick) {
-  const price = num(tick.lt ?? tick.c ?? tick.price ?? tick.last, NaN);
-  const bid = num(tick.b ?? tick.bid, NaN);
-  const ask = num(tick.a ?? tick.ask, NaN);
-
+  const { price, bid, ask } = normalizePrice(tick);
   const check = validateTick(tick, price, bid, ask);
+
   if (!check.ok) {
     rejectedTicks++;
-    lastError = `reject ${check.reason}: ${tick.s || ""} ${price}`;
+    lastRejectReason = `${check.reason}: ${tick.s || ""} ${Number.isFinite(price) ? price : "NaN"}`;
+    lastError = `reject ${lastRejectReason}`;
     return;
   }
 
   acceptedTicks++;
+  lastError = "";
 
+  const safeBid = Number.isFinite(bid) && bid > 0 ? bid : price;
+  const safeAsk = Number.isFinite(ask) && ask > 0 ? ask : price;
   const open = num(tick.o, price);
   const high = num(tick.h, price);
   const low = num(tick.l, price);
@@ -184,7 +193,7 @@ function applyTick(tick) {
   const ts = Number.isFinite(rawT) && rawT > 1e15 ? Math.floor(rawT / 1e6) : Date.now();
 
   const direction = lastAcceptedPrice == null ? 0 : price > lastAcceptedPrice ? 1 : price < lastAcceptedPrice ? -1 : 0;
-  const tickVol = volRaw > 0 ? Math.min(volRaw, 5000) : 1;
+  const tickVol = Number.isFinite(volRaw) && volRaw > 0 ? Math.min(volRaw, 5000) : 1;
   const signedVol = direction * tickVol;
   globalCvd += signedVol;
   lastAcceptedPrice = price;
@@ -197,20 +206,20 @@ function applyTick(tick) {
     feedSymbol: tick.s || "",
     productName: PRODUCT_NAME,
     price,
-    bid,
-    ask,
-    spread: Math.abs(ask - bid),
-    open,
-    high,
-    low,
+    bid: safeBid,
+    ask: safeAsk,
+    spread: Math.abs(safeAsk - safeBid),
+    open: Number.isFinite(open) ? open : price,
+    high: Number.isFinite(high) ? high : price,
+    low: Number.isFinite(low) ? low : price,
     vol: tickVol,
-    cVol,
-    pct,
+    cVol: Number.isFinite(cVol) ? cVol : 0,
+    pct: Number.isFinite(pct) ? pct : 0,
     ts,
     updatedAt: new Date().toISOString()
   };
 
-  Object.keys(TF_MS).forEach(tf => updateCandle(tf, ts, price, tickVol, signedVol, bid, ask));
+  Object.keys(TF_MS).forEach(tf => updateCandle(tf, ts, price, tickVol, signedVol, safeBid, safeAsk));
 }
 
 function ema(vals, period = 21) {
@@ -265,7 +274,7 @@ function buildIndicators(tf = "M5") {
       tf, signal: "WAIT", rawSignal: "WAIT", reason: "WAITING REALTIME CANDLES",
       score: 0, smn: 0, power: 0, delta: 0, rsi: 50, atr: 0, phase: "RANGING",
       sideway: true, grade: "WAIT", tp: null, sl: null, candles: len, globalCvd,
-      acceptedTicks, rejectedTicks
+      acceptedTicks, rejectedTicks, lastRejectReason
     };
   }
 
@@ -291,7 +300,7 @@ function buildIndicators(tf = "M5") {
   const rsiNorm = Math.min(1, Math.abs(r - 50) / 22);
 
   const atrPct = live.price ? a / live.price : 0;
-  const sideway = len < 20 || atrPct < 0.00018 || avgRange < Math.max(live.spread || 0, 0.0001) * 1.6;
+  const sideway = len < 20 || atrPct < 0.00018 || avgRange < Math.max(live.spread || 0, 0.0001) * 1.2;
 
   let phase = "RANGING";
   if (!sideway && smn > deltaStd * 2 && pwr > 0) phase = "ACCUMULATION";
@@ -362,7 +371,8 @@ function buildIndicators(tf = "M5") {
     volRatio: Number(volRatio.toFixed(2)),
     barsSinceSignal: barsSince,
     acceptedTicks,
-    rejectedTicks
+    rejectedTicks,
+    lastRejectReason
   };
 }
 
@@ -374,7 +384,7 @@ function connect() {
     wsStatus = "LIVE";
     lastError = "";
     subscribe();
-    console.log("[VYRO V35] locked symbol connected:", FEED_SYMBOL);
+    console.log("[VYRO V36] connected:", FEED_SYMBOL);
   });
 
   ws.on("message", raw => {
@@ -385,13 +395,13 @@ function connect() {
   ws.on("error", err => {
     wsStatus = "ERROR";
     lastError = err.message;
-    console.error("[VYRO V35] WS error:", err.message);
+    console.error("[VYRO V36] WS error:", err.message);
   });
 
   ws.on("close", (code, reason) => {
     wsStatus = "RECONNECTING";
     lastError = `closed ${code} ${reason || ""}`;
-    console.warn("[VYRO V35] WS closed", code, reason.toString());
+    console.warn("[VYRO V36] WS closed", code, reason.toString());
     setTimeout(connect, 3000);
   });
 }
@@ -408,7 +418,7 @@ app.get("/api/health", (req, res) => {
     ok: true, status: wsStatus, msgPerSec,
     uptime: Math.floor((Date.now() - startedAt) / 1000),
     displaySymbol: DISPLAY_SYMBOL, feedSymbol: FEED_SYMBOL,
-    lastError, acceptedTicks, rejectedTicks
+    lastError, acceptedTicks, rejectedTicks, lastRejectReason
   });
 });
 
@@ -434,4 +444,4 @@ app.use(express.static(path.join(__dirname, "../frontend")));
 app.get("*", (req, res) => res.sendFile(path.join(__dirname, "../frontend/index.html")));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("[VYRO V35] running on", PORT));
+app.listen(PORT, () => console.log("[VYRO V36] running on", PORT));

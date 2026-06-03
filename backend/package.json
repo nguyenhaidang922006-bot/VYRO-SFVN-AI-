@@ -1,6 +1,6 @@
 {
-  "name": "vyro-nsi-v35-price-locked",
-  "version": "35.0.0",
+  "name": "vyro-nsi-v36-data-fix",
+  "version": "36.0.0",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

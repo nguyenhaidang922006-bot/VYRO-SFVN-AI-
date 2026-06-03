@@ -19,6 +19,28 @@ const MAX_CANDLES = 360;
 const MAX_TICK_JUMP = Number(process.env.MAX_TICK_JUMP || 4.0);
 const SIGNAL_COOLDOWN_BARS = 4;
 
+// Nano Silver SFVN calibration
+const NSI = {
+  point: 0.001,
+  decimals: 3,
+  atrMinTrade: 0.030,
+  atrStrong: 0.150,
+  deltaMedium: 5,
+  deltaStrong: 9,
+  smnMedium: 12,
+  smnStrong: 25,
+  powerMedium: 6,
+  powerBreakout: 10,
+  powerStrong: 16,
+  rsiBuy: 53,
+  rsiSell: 47,
+  scalpTpMin: 0.080,
+  scalpTpMax: 0.180,
+  trendTpMax: 0.400,
+  slMin: 0.050,
+  slMax: 0.150
+};
+
 let ws = null;
 let wsStatus = "BOOTING";
 let lastError = "";
@@ -105,7 +127,7 @@ function median(arr) {
   return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
 }
 
-// V38: Always use mid(Bid/Ask) first. SFVN last/lt can be stale.
+// V40: Always use mid(Bid/Ask) first. SFVN last/lt can be stale.
 function normalizeTick(tick) {
   const bid = num(tick.b ?? tick.bid);
   const ask = num(tick.a ?? tick.ask);
@@ -322,7 +344,8 @@ function buildIndicators(tf = "M5") {
       tf, signal: "WAIT", rawSignal: "WAIT", reason: "WAITING REALTIME DATA",
       score: 0, smn: 0, power: 0, delta: 0, rsi: 50, atr: 0, phase: "RANGING",
       sideway: true, grade: "WAIT", tp: null, sl: null, candles: realCount,
-      displayCandles: len, globalCvd, acceptedTicks, rejectedTicks, lastRejectReason
+      displayCandles: len, globalCvd, acceptedTicks, rejectedTicks, lastRejectReason,
+      nsiMode: true
     };
   }
 
@@ -332,53 +355,72 @@ function buildIndicators(tf = "M5") {
   const ranges = c.slice(-20).map(x => Math.max(0, x.high - x.low));
 
   const r = rsi(closes);
-  const aRaw = atr(c);
-  const fallbackAtr = Math.max(live.spread || 0, avg(ranges), 0.005);
-  const a = aRaw > 0 ? aRaw : fallbackAtr;
+  const atrRaw = atr(c);
+  const avgRange = avg(ranges);
+  const fallbackAtr = Math.max(live.spread || 0, avgRange, NSI.point * 8);
+  const a = atrRaw > 0 ? atrRaw : fallbackAtr;
 
   const delta = last.delta;
-  const smn = c.slice(-60).reduce((s, x) => s + x.delta, 0);
-  const pwr = delta - ema(deltas.slice(-80), 21);
+  const smn = c.slice(-40).reduce((s, x) => s + x.delta, 0);
+  const pwr = delta - ema(deltas.slice(-50), 13);
 
-  const deltaStd = Math.max(1, stdev(deltas.slice(-60)));
-  const avgVol = Math.max(1, avg(vols.slice(-30)));
+  const avgVol = Math.max(1, avg(vols.slice(-25)));
   const volRatio = last.volume / avgVol;
-  const avgRange = avg(ranges);
 
-  const powerNorm = Math.min(1, Math.abs(pwr) / (deltaStd * 1.8));
-  const deltaNorm = Math.min(1, Math.abs(delta) / (deltaStd * 1.3));
-  const volNorm = Math.min(1, Math.max(0, volRatio - 0.7) / 1.4);
-  const rsiNorm = Math.min(1, Math.abs(r - 50) / 22);
+  // Silver-specific score. Values are small but meaningful.
+  const atrScore = Math.min(100, (a / NSI.atrStrong) * 100);
+  const deltaScore = Math.min(100, (Math.abs(delta) / NSI.deltaStrong) * 100);
+  const powerScore = Math.min(100, (Math.abs(pwr) / NSI.powerStrong) * 100);
+  const smnScore = Math.min(100, (Math.abs(smn) / NSI.smnStrong) * 100);
+  const rsiScore = Math.min(100, Math.abs(r - 50) / 18 * 100);
+  const volumeScore = Math.min(100, Math.max(0, volRatio - 0.8) / 1.2 * 100);
 
-  const atrPct = live.price ? a / live.price : 0;
-  const sideway = len < 12 || atrPct < 0.00010 || avgRange < Math.max(live.spread || 0, 0.0001) * 0.35;
+  const sideway = len < 12 || a < NSI.atrMinTrade || (Math.abs(pwr) < NSI.powerMedium && Math.abs(delta) < NSI.deltaMedium);
+  const rawScore = atrScore * 0.20 + deltaScore * 0.22 + powerScore * 0.26 + smnScore * 0.16 + rsiScore * 0.08 + volumeScore * 0.08;
+  const score = sideway ? Math.min(48, Math.round(rawScore)) : Math.round(Math.max(0, Math.min(96, rawScore)));
 
   let phase = "RANGING";
-  if (!sideway && smn > deltaStd * 2 && pwr > 0) phase = "ACCUMULATION";
-  if (!sideway && smn < -deltaStd * 2 && pwr < 0) phase = "DISTRIBUTION";
-  if (!sideway && Math.abs(pwr) > deltaStd * 1.5) phase = pwr > 0 ? "MARKUP" : "MARKDOWN";
-
-  const rawScore = (powerNorm * 0.36 + deltaNorm * 0.28 + volNorm * 0.18 + rsiNorm * 0.18) * 100;
-  const score = sideway ? Math.min(35, Math.round(rawScore)) : Math.round(Math.max(0, Math.min(92, rawScore)));
+  if (!sideway && smn > NSI.smnMedium && pwr > NSI.powerMedium) phase = "ACCUMULATION";
+  if (!sideway && smn < -NSI.smnMedium && pwr < -NSI.powerMedium) phase = "DISTRIBUTION";
+  if (!sideway && Math.abs(pwr) >= NSI.powerBreakout && Math.abs(delta) >= NSI.deltaMedium) {
+    phase = pwr > 0 ? "MARKUP" : "MARKDOWN";
+  }
 
   let candidate = "WAIT";
   let reason = "WAITING FOR CONFIRM";
 
-  const buyOK = !sideway && score >= 64 && pwr > 0 && delta > 0 && smn >= 0 && r >= 51 && r <= 72;
-  const sellOK = !sideway && score >= 64 && pwr < 0 && delta < 0 && smn <= 0 && r <= 49 && r >= 28;
+  const buyOK =
+    !sideway &&
+    score >= 62 &&
+    pwr >= NSI.powerBreakout &&
+    delta >= NSI.deltaMedium &&
+    smn >= NSI.smnMedium &&
+    r >= NSI.rsiBuy &&
+    r <= 72;
+
+  const sellOK =
+    !sideway &&
+    score >= 62 &&
+    pwr <= -NSI.powerBreakout &&
+    delta <= -NSI.deltaMedium &&
+    smn <= -NSI.smnMedium &&
+    r <= NSI.rsiSell &&
+    r >= 28;
 
   if (buyOK) {
     candidate = "BUY";
-    reason = "SMN + POWER + DELTA BUY CONFIRM";
+    reason = "NSI BUY: POWER + DELTA + SMN CONFIRM";
   } else if (sellOK) {
     candidate = "SELL";
-    reason = "SMN + POWER + DELTA SELL CONFIRM";
+    reason = "NSI SELL: POWER + DELTA + SMN CONFIRM";
   } else if (sideway) {
-    reason = realCount < 6 ? "LIVE WARMUP — ĐANG GOM NẾN" : "SIDEWAY / ATR LOW — NO TRADE";
+    reason = realCount < 6 ? "LIVE WARMUP — ĐANG GOM NẾN" : "NSI SIDEWAY / ATR LOW — NO TRADE";
+  } else if (Math.abs(pwr) < NSI.powerBreakout) {
+    reason = "NSI POWER CHƯA ĐỦ BREAKOUT";
+  } else if (Math.abs(delta) < NSI.deltaMedium) {
+    reason = "NSI DELTA CHƯA ĐỦ MẠNH";
   } else if ((pwr > 0 && delta < 0) || (pwr < 0 && delta > 0)) {
     reason = "FLOW / DELTA NGƯỢC CHIỀU";
-  } else if (score < 64) {
-    reason = "AI POWER CHƯA ĐỦ MẠNH";
   }
 
   const barKey = last.time;
@@ -402,9 +444,13 @@ function buildIndicators(tf = "M5") {
   }
 
   const price = live.price || 0;
-  const tp = signal === "BUY" ? price + a * 2 : signal === "SELL" ? price - a * 2 : null;
-  const sl = signal === "BUY" ? price - a * 1.2 : signal === "SELL" ? price + a * 1.2 : null;
-  const grade = score >= 80 ? "A STRONG" : score >= 64 ? "B GOOD" : score >= 45 ? "C WATCH" : "WAIT";
+  const tpDistRaw = Math.max(NSI.scalpTpMin, Math.min(a * 2.0, phase === "MARKUP" || phase === "MARKDOWN" ? NSI.trendTpMax : NSI.scalpTpMax));
+  const slDistRaw = Math.max(NSI.slMin, Math.min(a * 1.2, NSI.slMax));
+
+  const tp = signal === "BUY" ? price + tpDistRaw : signal === "SELL" ? price - tpDistRaw : null;
+  const sl = signal === "BUY" ? price - slDistRaw : signal === "SELL" ? price + slDistRaw : null;
+
+  const grade = score >= 80 ? "A STRONG" : score >= 62 ? "B GOOD" : score >= 45 ? "C WATCH" : "WAIT";
 
   return {
     tf, signal, rawSignal: candidate, reason,
@@ -413,10 +459,12 @@ function buildIndicators(tf = "M5") {
     power: Number(pwr.toFixed(2)),
     delta: Number(delta.toFixed(2)),
     rsi: Number(r.toFixed(1)),
-    atr: Number(a.toFixed(4)),
+    atr: Number(a.toFixed(3)),
     phase, sideway, grade,
-    tp: tp == null ? null : Number(tp.toFixed(4)),
-    sl: sl == null ? null : Number(sl.toFixed(4)),
+    tp: tp == null ? null : Number(tp.toFixed(3)),
+    sl: sl == null ? null : Number(sl.toFixed(3)),
+    tpDist: Number(tpDistRaw.toFixed(3)),
+    slDist: Number(slDistRaw.toFixed(3)),
     candles: realCount,
     displayCandles: len,
     globalCvd: Number(globalCvd.toFixed(2)),
@@ -424,7 +472,10 @@ function buildIndicators(tf = "M5") {
     barsSinceSignal: barsSince,
     acceptedTicks,
     rejectedTicks,
-    lastRejectReason
+    lastRejectReason,
+    nsiMode: true,
+    point: NSI.point,
+    decimals: NSI.decimals
   };
 }
 
@@ -436,7 +487,7 @@ function connect() {
     wsStatus = "LIVE";
     lastError = "";
     subscribe();
-    console.log("[VYRO V38] connected:", FEED_SYMBOL);
+    console.log("[VYRO V40] connected:", FEED_SYMBOL);
   });
 
   ws.on("message", raw => {
@@ -447,13 +498,13 @@ function connect() {
   ws.on("error", err => {
     wsStatus = "ERROR";
     lastError = err.message;
-    console.error("[VYRO V38] WS error:", err.message);
+    console.error("[VYRO V40] WS error:", err.message);
   });
 
   ws.on("close", (code, reason) => {
     wsStatus = "RECONNECTING";
     lastError = `closed ${code} ${reason || ""}`;
-    console.warn("[VYRO V38] WS closed", code, reason.toString());
+    console.warn("[VYRO V40] WS closed", code, reason.toString());
     setTimeout(connect, 3000);
   });
 }
@@ -498,4 +549,4 @@ app.use(express.static(path.join(__dirname, "../frontend")));
 app.get("*", (req, res) => res.sendFile(path.join(__dirname, "../frontend/index.html")));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("[VYRO V38] running on", PORT));
+app.listen(PORT, () => console.log("[VYRO V40] running on", PORT));

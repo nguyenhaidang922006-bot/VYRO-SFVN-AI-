@@ -1,6 +1,6 @@
 {
-  "name": "vyro-nsi-v39-tradingview-autochart",
-  "version": "39.0.0",
+  "name": "vyro-nsi-v40-silver-tuned-ai",
+  "version": "40.0.0",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

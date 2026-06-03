@@ -1,6 +1,6 @@
 {
-  "name": "vyro-nsi-v44-real-candle-chart-fix",
-  "version": "44.0.0",
+  "name": "vyro-nsi-v45-lightweight-charts-pro",
+  "version": "45.0.0",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

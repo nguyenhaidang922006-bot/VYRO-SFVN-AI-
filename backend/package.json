@@ -1,6 +1,6 @@
 {
-  "name": "vyro-nsi-sfvn-realtime",
-  "version": "32.0.0",
+  "name": "vyro-nsi-v34-realtime-ai-stable",
+  "version": "34.0.0",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

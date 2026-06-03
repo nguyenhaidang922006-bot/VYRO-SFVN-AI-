@@ -15,8 +15,7 @@ const PRICE_WS = process.env.SFVN_PRICE_WS || "wss://client-uat.mapsinfotech.com
 
 const TF_MS = { M1: 60000, M5: 300000, M15: 900000 };
 const MAX_CANDLES = 360;
-const MAX_NORMAL_SPREAD = Number(process.env.MAX_NORMAL_SPREAD || 2.5);
-const MAX_TICK_JUMP = Number(process.env.MAX_TICK_JUMP || 3.0);
+const MAX_TICK_JUMP = Number(process.env.MAX_TICK_JUMP || 4.0);
 const SIGNAL_COOLDOWN_BARS = 4;
 
 let ws = null;
@@ -50,13 +49,13 @@ let lastAcceptedPrice = null;
 let globalCvd = 0;
 let rejectedTicks = 0;
 let acceptedTicks = 0;
+let lastRejectReason = "";
 let lastSignal = {};
 let lastSignalBar = {};
-let lastRejectReason = "";
 
 function num(v, fallback = NaN) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : fallback;
+  const x = Number(v);
+  return Number.isFinite(x) ? x : fallback;
 }
 
 function decodeBase64Json(s) {
@@ -79,13 +78,6 @@ function parseWsPayload(raw) {
   return [];
 }
 
-function median(arr) {
-  if (!arr.length) return null;
-  const a = [...arr].sort((x, y) => x - y);
-  const m = Math.floor(a.length / 2);
-  return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
-}
-
 function acceptedSymbol(s) {
   return String(s || "") === FEED_SYMBOL;
 }
@@ -93,42 +85,54 @@ function acceptedSymbol(s) {
 function subscribe() {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
   ws.send(JSON.stringify({
-    key: { domainName: "", prefix: "", messageName: "subscribe", suffix: "v1", messageType: "tick_price" },
+    key: {
+      domainName: "",
+      prefix: "",
+      messageName: "subscribe",
+      suffix: "v1",
+      messageType: "tick_price"
+    },
     payload: `ticker@${FEED_SYMBOL}`
   }));
 }
 
-function normalizePrice(tick) {
-  let price = num(tick.lt ?? tick.c ?? tick.price ?? tick.last);
+function median(arr) {
+  if (!arr.length) return null;
+  const a = [...arr].sort((x, y) => x - y);
+  const m = Math.floor(a.length / 2);
+  return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+}
+
+// IMPORTANT V37:
+// Do NOT use lt/last as display price for SFVN NSI.
+// Use bid/ask mid price because lt can be stale or from another internal feed.
+function normalizeTick(tick) {
   const bid = num(tick.b ?? tick.bid);
   const ask = num(tick.a ?? tick.ask);
+  const last = num(tick.lt ?? tick.c ?? tick.price ?? tick.last);
 
-  // If last price is missing or bad but bid/ask exist, use mid price.
-  if ((!Number.isFinite(price) || price <= 0) && Number.isFinite(bid) && Number.isFinite(ask) && bid > 0 && ask > 0) {
+  let price = NaN;
+  if (Number.isFinite(bid) && Number.isFinite(ask) && bid > 20 && ask > 20) {
     price = (bid + ask) / 2;
+  } else if (Number.isFinite(last) && last > 20) {
+    price = last;
   }
 
-  return { price, bid, ask };
+  return { price, bid, ask, last };
 }
 
 function validateTick(tick, price, bid, ask) {
   if (!acceptedSymbol(tick.s)) return { ok: false, reason: "symbol_mismatch" };
   if (!Number.isFinite(price) || price <= 0) return { ok: false, reason: "bad_price" };
 
-  // NSI Nano Silver should be around tens, not 6.xx.
   if (price < 20) return { ok: false, reason: "wrong_scale_low" };
   if (price > 200) return { ok: false, reason: "wrong_scale_high" };
-
-  // Bid/ask can lag or be absent on SFVN, so do not reject if they are weird.
-  if (Number.isFinite(bid) && Number.isFinite(ask) && bid > 0 && ask > 0) {
-    const spread = Math.abs(ask - bid);
-    if (spread > MAX_NORMAL_SPREAD) return { ok: false, reason: "spread_too_wide" };
-  }
 
   const med = median(priceWindow);
   if (med !== null && priceWindow.length >= 8 && Math.abs(price - med) > MAX_TICK_JUMP) {
     return { ok: false, reason: "jump_vs_median" };
   }
+
   if (lastAcceptedPrice !== null && Math.abs(price - lastAcceptedPrice) > MAX_TICK_JUMP) {
     return { ok: false, reason: "jump_vs_last" };
   }
@@ -168,12 +172,12 @@ function updateCandle(tf, ts, price, tickVol, signedVol, bid, ask) {
 }
 
 function applyTick(tick) {
-  const { price, bid, ask } = normalizePrice(tick);
+  const { price, bid, ask, last } = normalizeTick(tick);
   const check = validateTick(tick, price, bid, ask);
 
   if (!check.ok) {
     rejectedTicks++;
-    lastRejectReason = `${check.reason}: ${tick.s || ""} ${Number.isFinite(price) ? price : "NaN"}`;
+    lastRejectReason = `${check.reason}: ${tick.s || ""} price=${Number.isFinite(price) ? price : "NaN"} last=${Number.isFinite(last) ? last : "NaN"}`;
     lastError = `reject ${lastRejectReason}`;
     return;
   }
@@ -246,7 +250,7 @@ function rsi(vals, period = 14) {
 function atr(c, period = 14) {
   if (c.length < period + 1) return 0;
   const arr = c.slice(-period - 1);
-  let trs = [];
+  const trs = [];
   for (let i = 1; i < arr.length; i++) {
     const cur = arr[i], prev = arr[i - 1];
     trs.push(Math.max(cur.high - cur.low, Math.abs(cur.high - prev.close), Math.abs(cur.low - prev.close)));
@@ -384,7 +388,7 @@ function connect() {
     wsStatus = "LIVE";
     lastError = "";
     subscribe();
-    console.log("[VYRO V36] connected:", FEED_SYMBOL);
+    console.log("[VYRO V37 FULL] connected:", FEED_SYMBOL);
   });
 
   ws.on("message", raw => {
@@ -395,13 +399,13 @@ function connect() {
   ws.on("error", err => {
     wsStatus = "ERROR";
     lastError = err.message;
-    console.error("[VYRO V36] WS error:", err.message);
+    console.error("[VYRO V37 FULL] WS error:", err.message);
   });
 
   ws.on("close", (code, reason) => {
     wsStatus = "RECONNECTING";
     lastError = `closed ${code} ${reason || ""}`;
-    console.warn("[VYRO V36] WS closed", code, reason.toString());
+    console.warn("[VYRO V37 FULL] WS closed", code, reason.toString());
     setTimeout(connect, 3000);
   });
 }
@@ -444,4 +448,4 @@ app.use(express.static(path.join(__dirname, "../frontend")));
 app.get("*", (req, res) => res.sendFile(path.join(__dirname, "../frontend/index.html")));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("[VYRO V36] running on", PORT));
+app.listen(PORT, () => console.log("[VYRO V37 FULL] running on", PORT));

@@ -1,6 +1,6 @@
 {
-  "name": "vyro-nsi-v52-mt5-volume-profile-engine",
-  "version": "52.0.0",
+  "name": "vyro-nsi-v55-mt5-chart-indicators",
+  "version": "55.0.0",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

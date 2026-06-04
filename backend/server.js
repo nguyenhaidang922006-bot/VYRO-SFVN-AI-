@@ -83,7 +83,7 @@ function applyTick(t){
 function connect(){
   sfvnStatus="CONNECTING";
   const ws=new WebSocket(PRICE_WS);
-  ws.on("open",()=>{sfvnStatus="LIVE";lastSfvnError="";ws.send(JSON.stringify({key:{domainName:"",prefix:"",messageName:"subscribe",suffix:"v1",messageType:"tick_price"},payload:`ticker@${FEED_SYMBOL}`}));console.log("[V52] SFVN connected")});
+  ws.on("open",()=>{sfvnStatus="LIVE";lastSfvnError="";ws.send(JSON.stringify({key:{domainName:"",prefix:"",messageName:"subscribe",suffix:"v1",messageType:"tick_price"},payload:`ticker@${FEED_SYMBOL}`}));console.log("[V55] SFVN connected")});
   ws.on("message",raw=>{sfvnMsgCounter++;parse(raw).forEach(applyTick)});
   ws.on("error",e=>{sfvnStatus="ERROR";lastSfvnError=e.message});
   ws.on("close",()=>{sfvnStatus="RECONNECTING";setTimeout(connect,3000)});
@@ -126,47 +126,76 @@ app.post("/api/bridge/mt5", auth, (req,res)=>{
   const pressure=p.pressure||(Number(p.power||0)>0?"BUY PRESSURE":Number(p.power||0)<0?"SELL PRESSURE":"NEUTRAL");
   const confidence=Math.max(0,Math.min(100,Math.round(num(p.confidence??p.score,0))));
   ai={
-    source:"MARKET_FLOW_ENGINE",status:"LIVE",symbol:p.symbol||"NSI",tf:p.tf||"M1",
+    source:"MARKET_FLOW_ENGINE",status:"LIVE",symbol:p.symbol||"NSI",tf:p.tf||"M1",mt5Price:round(p.mt5Price??p.price,3),
     signal,action:p.action||action(signal,pressure,trend),score:confidence,confidence,reason:p.reason||"AI update",
     trend,pressure,momentum:p.momentum||"NEUTRAL",marketMode:p.marketMode||p.phase||"RANGING",grade:p.grade||"WAIT",
     smn:round(p.smn,2)??0,power:round(p.power,2)??0,delta:round(p.delta,2)??0,rsi:round(p.rsi,1)??50,atr:round(p.atr,3)??0,
     emaFast:round(p.emaFast,3),emaSlow:round(p.emaSlow,3),emaLong:round(p.emaLong??p.ema50,3),emaTrend:p.emaTrend||trend,emaCross:p.emaCross||"NONE",emaStack:p.emaStack||"NEUTRAL",emaSlope:round(p.emaSlope,2)??0,
     bos:p.bos||"NONE",choch:p.choch||"NONE",liquidity:p.liquidity||"NONE",stopHunt:p.stopHunt||"NONE",fakeBreakout:!!p.fakeBreakout,smartBias:p.smartBias||trend,
-    vpoc:round(p.vpoc,3),vah:round(p.vah,3),val:round(p.val,3),hvn:round(p.hvn,3),lvn:round(p.lvn,3),volumeProfileBias:p.volumeProfileBias||"NEUTRAL", vpQuality:p.vpQuality||"MT5_TICK_VOLUME", vpLookback:Number(p.vpLookback||0), vpBuckets:Number(p.vpBuckets||0),
+    vpoc:round(p.vpoc,3),vah:round(p.vah,3),val:round(p.val,3),hvn:round(p.hvn,3),lvn:round(p.lvn,3),volumeProfileBias:p.volumeProfileBias||"NEUTRAL", vpQuality:p.vpQuality||"MT5_TICK_VOLUME", vpLookback:Number(p.vpLookback||0), vpBuckets:Number(p.vpBuckets||0), vpMapMode:p.vpMapMode||"SFVN_OFFSET_MAP", vpHistogram:Array.isArray(p.vpHistogram)?p.vpHistogram:[], chartCandles:Array.isArray(p.chartCandles)?p.chartCandles:[], chartVolume:Array.isArray(p.chartVolume)?p.chartVolume:[], ema8Series:Array.isArray(p.ema8Series)?p.ema8Series:[], ema21Series:Array.isArray(p.ema21Series)?p.ema21Series:[], ema50Series:Array.isArray(p.ema50Series)?p.ema50Series:[],
     entryZone:p.entryZone||null,tp1:round(p.tp1??p.tp,3),tp2:round(p.tp2,3),tp3:round(p.tp3,3),sl:round(p.sl,3),rr:round(p.rr,2),
     updatedAt:new Date().toISOString(),bridgeLatencyMs:p.clientTime?now-Number(p.clientTime):null,candles:Number(p.candles||0),ticks:Number(p.ticks||0)
   };
   res.json({ok:true,packets:bridgePackets});
 });
 
+function mapMt5LevelToSfvn(level, ai, sfvnPrice) {
+  const lv = Number(level);
+  const mt5 = Number(ai.mt5Price);
+  const sfvn = Number(sfvnPrice);
+  if (!Number.isFinite(lv)) return null;
+  if (!Number.isFinite(mt5) || !Number.isFinite(sfvn)) return lv;
+
+  // Quan trọng:
+  // MT5 chỉ là nguồn phân tích. Không hiển thị thẳng giá MT5 lên SFVN.
+  // Dùng offset: khoảng cách từ level đến giá MT5 hiện tại,
+  // rồi cộng vào giá SFVN hiện tại.
+  const scale = Number(process.env.VP_DISPLAY_SCALE || 1);
+  return sfvn + (lv - mt5) * scale;
+}
+
 function buildVolumeProfilePlan(price, ai){
-  const p = Number(price);
-  const poc = Number(ai.vpoc);
-  const vah = Number(ai.vah);
-  const val = Number(ai.val);
-  const atr = Math.max(Number(ai.atr || 0), 0.01);
+  const sfvn = Number(price);
+  const atrMt5 = Math.max(Number(ai.atr || 0), 0.01);
+  const atr = atrMt5 * Number(process.env.VP_DISPLAY_SCALE || 1);
+
+  const rawPoc = Number(ai.vpoc);
+  const rawVah = Number(ai.vah);
+  const rawVal = Number(ai.val);
+  const rawHvn = Number(ai.hvn);
+  const rawLvn = Number(ai.lvn);
+
+  const poc = mapMt5LevelToSfvn(rawPoc, ai, sfvn);
+  const vah = mapMt5LevelToSfvn(rawVah, ai, sfvn);
+  const val = mapMt5LevelToSfvn(rawVal, ai, sfvn);
+  const hvn = mapMt5LevelToSfvn(rawHvn, ai, sfvn);
+  const lvn = mapMt5LevelToSfvn(rawLvn, ai, sfvn);
+
   const trend = ai.trend || "NEUTRAL";
   const bias = ai.volumeProfileBias || "NEUTRAL";
+  const safePrice = Number.isFinite(sfvn) ? sfvn : null;
 
-  const safePrice = Number.isFinite(p) ? p : null;
   const safePoc = Number.isFinite(poc) ? poc : null;
   const safeVah = Number.isFinite(vah) ? vah : null;
   const safeVal = Number.isFinite(val) ? val : null;
+  const safeHvn = Number.isFinite(hvn) ? hvn : null;
+  const safeLvn = Number.isFinite(lvn) ? lvn : null;
 
   const levels = [
-    {label:"STRUCT SELL ZONE", value:safeVah ? safeVah + atr*2.2 : null, note:"Kháng cự trên — bot dễ rút khỏi đây", type:"sell"},
-    {label:"DANGER RETEST", value:safeVah ? safeVah + atr*0.8 : null, note:"Giá hiện tại gần vùng nguy hiểm", type:"danger"},
-    {label:"VAH", value:safeVah, note:"Hỗ trợ/kháng cự trên — cần giữ lại", type:"vah"},
-    {label:"POC", value:safePoc, note:"Nam châm mạnh nhất — vùng thanh khoản lớn", type:"poc"},
-    {label:"VAL", value:safeVal, note:"Vùng BUY an toàn thứ 2 — đáy Value Area", type:"val"},
-    {label:"LVN", value:safeVal ? safeVal - atr*0.9 : null, note:"Ít giao dịch, có thể xuyên nhanh", type:"lvn"},
+    {label:"STRUCT SELL ZONE", value:safeVah ? safeVah + atr*2.2 : null, note:"Kháng cự trên — vùng dễ bị từ chối", type:"sell"},
+    {label:"DANGER RETEST", value:safeVah ? safeVah + atr*0.8 : null, note:"Vùng retest nguy hiểm", type:"danger"},
+    {label:"VAH", value:safeVah, note:"Value Area High — vùng kháng cự/hỗ trợ trên", type:"vah"},
+    {label:"POC", value:safePoc, note:"Point of Control — nam châm thanh khoản", type:"poc"},
+    {label:"VAL", value:safeVal, note:"Value Area Low — vùng hỗ trợ dưới", type:"val"},
+    {label:"LVN", value:safeLvn, note:"Low Volume Node — ít giao dịch, dễ xuyên nhanh", type:"lvn"},
     {label:"FAR SUPPORT", value:safeVal ? safeVal - atr*2.0 : null, note:"Hỗ trợ xa — SL tốt nếu phá VAL", type:"support"}
   ];
 
   let zoneA = null;
   let zoneB = null;
+
   if (safePoc && safeVal && safeVah) {
-    if (trend === "BULLISH" || ai.pressure?.includes("BUY")) {
+    if (trend === "BULLISH" || String(ai.pressure || "").includes("BUY")) {
       zoneA = {
         title:"Zone A — BUY tại POC (ưu tiên)",
         entry:`${(safePoc-atr*0.35).toFixed(3)} – ${(safePoc+atr*0.20).toFixed(3)}`,
@@ -185,7 +214,7 @@ function buildVolumeProfilePlan(price, ai){
         tp3:(safeVah+atr*1.2).toFixed(3),
         rr:"1 : 2.5"
       };
-    } else if (trend === "BEARISH" || ai.pressure?.includes("SELL")) {
+    } else if (trend === "BEARISH" || String(ai.pressure || "").includes("SELL")) {
       zoneA = {
         title:"Zone A — SELL tại POC (ưu tiên)",
         entry:`${(safePoc-atr*0.20).toFixed(3)} – ${(safePoc+atr*0.35).toFixed(3)}`,
@@ -210,6 +239,11 @@ function buildVolumeProfilePlan(price, ai){
   return {
     price:safePrice,
     bias,
+    mapMode:"SFVN_OFFSET_MAP",
+    mt5Price:Number.isFinite(Number(ai.mt5Price)) ? Number(ai.mt5Price) : null,
+    raw:{vpoc:rawPoc,vah:rawVah,val:rawVal,hvn:rawHvn,lvn:rawLvn},
+    mapped:{vpoc:safePoc,vah:safeVah,val:safeVal,hvn:safeHvn,lvn:safeLvn},
+    histogram:Array.isArray(ai.vpHistogram) ? ai.vpHistogram : [],
     summary: trend === "BULLISH" ? "TÓM TẮT KẾ HOẠCH BUY — 2 VÙNG ENTRY" : trend === "BEARISH" ? "TÓM TẮT KẾ HOẠCH SELL — 2 VÙNG ENTRY" : "TÓM TẮT KẾ HOẠCH — CHỜ XÁC NHẬN",
     levels,
     zoneA,
@@ -233,4 +267,4 @@ app.get("/api/live", (req,res)=>{
 
 app.use(express.static(path.join(__dirname,"../frontend")));
 app.get("*",(req,res)=>res.sendFile(path.join(__dirname,"../frontend/index.html")));
-app.listen(PORT,()=>console.log("[VYRO V52] MT5 Volume Profile Engine running",PORT));
+app.listen(PORT,()=>console.log("[VYRO V55] MT5 Chart Indicators running",PORT));

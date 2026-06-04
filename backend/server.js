@@ -24,6 +24,7 @@ let acceptedPriceTicks = 0;
 let rejectedPriceTicks = 0;
 let bridgePackets = 0;
 let lastBridgeAt = 0;
+let currentTimeframe = "M1";
 
 let sfvnPrice = {
   displaySymbol: DISPLAY_SYMBOL,
@@ -82,7 +83,7 @@ function applyTick(t){
 function connect(){
   sfvnStatus="CONNECTING";
   const ws=new WebSocket(PRICE_WS);
-  ws.on("open",()=>{sfvnStatus="LIVE";lastSfvnError="";ws.send(JSON.stringify({key:{domainName:"",prefix:"",messageName:"subscribe",suffix:"v1",messageType:"tick_price"},payload:`ticker@${FEED_SYMBOL}`}));console.log("[V50] SFVN connected")});
+  ws.on("open",()=>{sfvnStatus="LIVE";lastSfvnError="";ws.send(JSON.stringify({key:{domainName:"",prefix:"",messageName:"subscribe",suffix:"v1",messageType:"tick_price"},payload:`ticker@${FEED_SYMBOL}`}));console.log("[V52] SFVN connected")});
   ws.on("message",raw=>{sfvnMsgCounter++;parse(raw).forEach(applyTick)});
   ws.on("error",e=>{sfvnStatus="ERROR";lastSfvnError=e.message});
   ws.on("close",()=>{sfvnStatus="RECONNECTING";setTimeout(connect,3000)});
@@ -102,9 +103,24 @@ function action(signal,pressure,trend){
   if(pressure&&pressure.includes("SELL")&&trend==="BEARISH")return"WAIT RETEST SELL";
   return"WAIT CONFIRM";
 }
+
+app.get("/api/timeframe", (req,res)=>{
+  res.json({ok:true, timeframe:currentTimeframe});
+});
+
+app.post("/api/timeframe", (req,res)=>{
+  const tf = String((req.body && req.body.timeframe) || "M1").toUpperCase();
+  const allowed = ["M1","M5","M15","H1"];
+  if(!allowed.includes(tf)) return res.status(400).json({ok:false,error:"invalid timeframe"});
+  currentTimeframe = tf;
+  ai.tf = tf;
+  res.json({ok:true,timeframe:currentTimeframe});
+});
+
 app.post("/api/bridge/mt5", auth, (req,res)=>{
   const p=req.body||{}, now=Date.now();
   bridgePackets++; lastBridgeAt=now;
+  if (p.tf) currentTimeframe = String(p.tf).toUpperCase();
   const signal=p.signal||"WAIT";
   const trend=p.trend||p.emaTrend||"NEUTRAL";
   const pressure=p.pressure||(Number(p.power||0)>0?"BUY PRESSURE":Number(p.power||0)<0?"SELL PRESSURE":"NEUTRAL");
@@ -116,7 +132,7 @@ app.post("/api/bridge/mt5", auth, (req,res)=>{
     smn:round(p.smn,2)??0,power:round(p.power,2)??0,delta:round(p.delta,2)??0,rsi:round(p.rsi,1)??50,atr:round(p.atr,3)??0,
     emaFast:round(p.emaFast,3),emaSlow:round(p.emaSlow,3),emaLong:round(p.emaLong??p.ema50,3),emaTrend:p.emaTrend||trend,emaCross:p.emaCross||"NONE",emaStack:p.emaStack||"NEUTRAL",emaSlope:round(p.emaSlope,2)??0,
     bos:p.bos||"NONE",choch:p.choch||"NONE",liquidity:p.liquidity||"NONE",stopHunt:p.stopHunt||"NONE",fakeBreakout:!!p.fakeBreakout,smartBias:p.smartBias||trend,
-    vpoc:round(p.vpoc,3),vah:round(p.vah,3),val:round(p.val,3),hvn:round(p.hvn,3),lvn:round(p.lvn,3),volumeProfileBias:p.volumeProfileBias||"NEUTRAL",
+    vpoc:round(p.vpoc,3),vah:round(p.vah,3),val:round(p.val,3),hvn:round(p.hvn,3),lvn:round(p.lvn,3),volumeProfileBias:p.volumeProfileBias||"NEUTRAL", vpQuality:p.vpQuality||"MT5_TICK_VOLUME", vpLookback:Number(p.vpLookback||0), vpBuckets:Number(p.vpBuckets||0),
     entryZone:p.entryZone||null,tp1:round(p.tp1??p.tp,3),tp2:round(p.tp2,3),tp3:round(p.tp3,3),sl:round(p.sl,3),rr:round(p.rr,2),
     updatedAt:new Date().toISOString(),bridgeLatencyMs:p.clientTime?now-Number(p.clientTime):null,candles:Number(p.candles||0),ticks:Number(p.ticks||0)
   };
@@ -207,7 +223,7 @@ app.get("/api/live", (req,res)=>{
   const display={symbol:DISPLAY_SYMBOL,productName:PRODUCT_NAME,price:sfvnPrice.price,bid:sfvnPrice.bid,ask:sfvnPrice.ask,spread:sfvnPrice.spread};
   const volumeProfilePlan=buildVolumeProfilePlan(sfvnPrice.price, ai);
   res.json({
-    ok:true,mode:"INDICATOR_MENU_VOLUME_PROFILE_PLAN",
+    ok:true,mode:"MT5_VOLUME_PROFILE_ENGINE", timeframe:currentTimeframe,
     uptime:Math.floor((Date.now()-startedAt)/1000),
     sfvn:{status:sfvnStatus,msgPerSec:sfvnMsgPerSec,lastError:lastSfvnError,acceptedPriceTicks,rejectedPriceTicks,price:sfvnPrice},
     bridge:{status:bridgeStatus,packets:bridgePackets,ageMs:age},
@@ -217,4 +233,4 @@ app.get("/api/live", (req,res)=>{
 
 app.use(express.static(path.join(__dirname,"../frontend")));
 app.get("*",(req,res)=>res.sendFile(path.join(__dirname,"../frontend/index.html")));
-app.listen(PORT,()=>console.log("[VYRO V50] Indicator Menu Volume Profile Plan running",PORT));
+app.listen(PORT,()=>console.log("[VYRO V52] MT5 Volume Profile Engine running",PORT));

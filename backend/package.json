@@ -1,6 +1,6 @@
 {
-  "name": "vyro-nsi-v50-indicator-menu-volume-profile-plan",
-  "version": "50.0.0",
+  "name": "vyro-nsi-v52-mt5-volume-profile-engine",
+  "version": "52.0.0",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

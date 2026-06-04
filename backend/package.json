@@ -1,6 +1,6 @@
 {
-  "name": "vyro-nsi-v62-chart-only-debug",
-  "version": "62.0.0",
+  "name": "vyro-nsi-v63-full-core",
+  "version": "63.0.0",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

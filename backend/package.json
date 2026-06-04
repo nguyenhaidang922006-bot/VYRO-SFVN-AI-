@@ -1,13 +1,12 @@
 {
-  "name": "vyro-nsi-v55-mt5-chart-indicators",
-  "version": "55.0.0",
+  "name": "vyro-nsi-v62-chart-only-debug",
+  "version": "62.0.0",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "cors": "^2.8.5",
     "express": "^4.18.2",
-    "ws": "^8.18.0"
+    "cors": "^2.8.5"
   }
 }

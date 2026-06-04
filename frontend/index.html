@@ -1,25 +1,187 @@
-<!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>VYRO NSI V60 Chart Core</title>
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>VYRO NSI V62 — Chart Only Debug</title>
 <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}body{background:#070b10;color:#e8fff7;font-family:Segoe UI,Arial,sans-serif;padding:12px}.top{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;border-bottom:1px solid #1b2a34;padding-bottom:10px;margin-bottom:10px}h1{color:#00ffcc;font-size:21px}.sub{font-size:12px;color:#789}.badges{display:flex;gap:8px}.badge{background:#101820;border:1px solid #24333d;border-radius:8px;padding:8px 11px;font-weight:900;font-size:12px}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#cf304a;margin-right:6px}.dot.on{background:#00c076;box-shadow:0 0 12px #00c076}.price{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:#101820;border:1px solid #00ffcc44;border-radius:14px;padding:12px 15px;margin-bottom:10px}.sym{font-family:Courier New;color:#789;font-size:12px}.name{font-size:20px;font-weight:900}.ba{font-family:Courier New;color:#9ab1bb;font-size:12px}.big{font-family:Courier New;font-size:38px;color:#00ffcc;font-weight:900}.menu{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.btn{border:1px solid #24333d;background:#101820;color:#9ab1bb;border-radius:999px;padding:9px 13px;font-weight:900;cursor:pointer}.btn.active{border-color:#00ffcc;color:#00ffcc;background:#062820}.signal{border:2px solid #f0b90b66;background:#111a20;border-radius:14px;padding:13px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:12px}.signal.buy{border-color:#00c076}.signal.sell{border-color:#cf304a}.decision{font-family:Courier New;font-size:28px;font-weight:900;color:#f0b90b}.buy .decision{color:#00c076}.sell .decision{color:#cf304a}.reason{font-size:12px;color:#9ab1bb;font-family:Courier New}.conf{font-family:Courier New;font-size:32px;font-weight:900}.layout{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:10px}.chartCard,.side{background:#081219;border:1px solid #24333d;border-radius:14px;padding:11px}.chartHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.ct{font-size:13px;color:#00ffcc;font-weight:900}#chart{height:610px;width:100%}.row{display:flex;justify-content:space-between;border-bottom:1px solid #1b2a34;padding:9px 0;font-size:13px}.row span:first-child{color:#789}.row span:last-child{font-family:Courier New;font-weight:900;text-align:right}.up{color:#00c076!important}.dn{color:#cf304a!important}.warn{color:#f0b90b!important}.log{background:#071018;border:1px solid #24333d;border-radius:10px;padding:10px;margin-top:10px;height:80px;overflow:auto;font-family:Courier New;font-size:12px;color:#9ab1bb}.tog{font-size:11px;border:1px solid #24333d;border-radius:6px;padding:6px 9px;background:#101820;color:#9ab1bb;cursor:pointer}.tog.active{color:#00ffcc;border-color:#00ffcc}@media(max-width:1000px){.layout{grid-template-columns:1fr}.big{font-size:30px}#chart{height:520px}.decision{font-size:22px}}</style></head><body>
-<div class="top"><div><h1>VYRO NSI V60 CHART CORE</h1><div class="sub">Chart trước — chỉ báo bám theo chart: EMA • Volume Profile • POC/VAH/VAL • TP/SL</div></div><div class="badges"><div class="badge"><span id="sfvndot" class="dot"></span><span id="sfvn">SFVN</span></div><div class="badge"><span id="bridgedot" class="dot"></span><span id="bridge">BRIDGE</span></div><div class="badge" id="uptime">0s</div></div></div>
-<div class="price"><div><div class="sym" id="sym">F-XACM-NSI-202607</div><div class="name">Nano Silver 07/2026</div><div class="ba">SFVN BID <span id="bid">--</span> • ASK <span id="ask">--</span> • SPREAD <span id="spread">--</span></div></div><div class="big" id="price">--</div></div>
-<div class="menu"><button class="btn tf active" id="tf-M1" onclick="setTF('M1')">M1</button><button class="btn tf" id="tf-M5" onclick="setTF('M5')">M5</button><button class="btn tf" id="tf-M15" onclick="setTF('M15')">M15</button><button class="btn tf" id="tf-H1" onclick="setTF('H1')">H1</button><button class="tog active" id="tEMA" onclick="toggle('ema')">EMA</button><button class="tog active" id="tVP" onclick="toggle('vp')">Volume Profile</button><button class="tog active" id="tTP" onclick="toggle('tp')">TP/SL</button></div>
-<div class="signal" id="sig"><div><div class="decision" id="decision">WAIT CONFIRM</div><div class="reason" id="reason">Waiting Python bridge...</div></div><div><div style="font-size:11px;color:#789">CONFIDENCE</div><div class="conf warn" id="conf">--%</div></div></div>
-<div class="layout"><div class="chartCard"><div class="chartHead"><div class="ct">MT5 CHART CORE — <span id="tfLabel">M1</span></div><div class="ct">MT5 <span id="mt5p">--</span></div></div><div id="chart"></div></div><div class="side"><div class="ct">INDICATOR ENGINE</div><div class="row"><span>Trend</span><span id="trend">--</span></div><div class="row"><span>Pressure</span><span id="pressure">--</span></div><div class="row"><span>SMN / Power / Delta</span><span id="spd">--</span></div><div class="row"><span>RSI / ATR</span><span id="rsiatr">--</span></div><div class="row"><span>EMA Stack / Cross</span><span id="emainfo">--</span></div><div class="row"><span>POC</span><span id="poc">--</span></div><div class="row"><span>VAH / VAL</span><span id="va">--</span></div><div class="row"><span>VP Bias</span><span id="vpbias">--</span></div><div class="row"><span>BOS / CHOCH</span><span id="bc">--</span></div><div class="row"><span>Liquidity</span><span id="liq">--</span></div><div class="row"><span>TP1 / TP2 / TP3</span><span id="tps">--</span></div><div class="row"><span>SL</span><span id="sl">--</span></div><div class="log" id="log">V60 started...</div></div></div>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#070b10;color:#e8fff7;font-family:Segoe UI,Arial,sans-serif;padding:12px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid #1b2a34;padding-bottom:10px;margin-bottom:10px}
+h1{font-size:22px;color:#00ffcc}
+.sub{font-size:12px;color:#8ca3ad;margin-top:3px}
+.badges{display:flex;gap:8px;flex-wrap:wrap}
+.badge{background:#101820;border:1px solid #24333d;border-radius:8px;padding:8px 11px;font-size:12px;font-weight:900}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#cf304a;margin-right:6px}
+.dot.on{background:#00c076;box-shadow:0 0 12px #00c076}
+.menu{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.btn{border:1px solid #24333d;background:#101820;color:#9ab1bb;border-radius:999px;padding:9px 14px;font-weight:900;cursor:pointer}
+.btn.active{border-color:#00ffcc;color:#00ffcc;background:#062820}
+.main{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:10px}
+.chartCard,.side{background:#081219;border:1px solid #24333d;border-radius:14px;padding:12px}
+.chartHead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+.ct{font-size:13px;color:#00ffcc;font-weight:900}
+#chart{width:100%;height:640px}
+.row{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #1b2a34;padding:9px 0;font-size:13px}
+.row span:first-child{color:#789}
+.row span:last-child{font-family:Courier New;font-weight:900;text-align:right}
+.ok{color:#00c076!important}.bad{color:#cf304a!important}.warn{color:#f0b90b!important}
+.note{background:#101820;border:1px solid #24333d;border-radius:10px;padding:10px;margin-bottom:10px;color:#9ab1bb;font-size:12px;line-height:1.5}
+.log{background:#071018;border:1px solid #24333d;border-radius:10px;padding:10px;margin-top:10px;height:120px;overflow:auto;font-family:Courier New;font-size:12px;color:#9ab1bb}
+@media(max-width:1000px){.main{grid-template-columns:1fr}#chart{height:540px}}
+</style>
+</head>
+<body>
+<div class="top">
+  <div>
+    <h1>VYRO NSI V62 — CHART ONLY DEBUG</h1>
+    <div class="sub">Mục tiêu: vẽ biểu đồ MT5 đúng 100% trước. Chưa bật EMA / VP / AI.</div>
+  </div>
+  <div class="badges">
+    <div class="badge"><span id="bridgeDot" class="dot"></span><span id="bridgeStatus">BRIDGE</span></div>
+    <div class="badge" id="packetBox">Packets 0</div>
+    <div class="badge" id="uptime">0s</div>
+  </div>
+</div>
+
+<div class="menu">
+  <button class="btn tf active" id="tf-M1" onclick="setTF('M1')">M1</button>
+  <button class="btn tf" id="tf-M5" onclick="setTF('M5')">M5</button>
+  <button class="btn tf" id="tf-M15" onclick="setTF('M15')">M15</button>
+  <button class="btn tf" id="tf-H1" onclick="setTF('H1')">H1</button>
+</div>
+
+<div class="note">
+  Test chuẩn: mở MT5 cùng symbol/timeframe, so sánh cây nến cuối: Time / Open / High / Low / Close phải giống 100%.
+</div>
+
+<div class="main">
+  <div class="chartCard">
+    <div class="chartHead">
+      <div class="ct">MT5 RAW CANDLE CHART — <span id="tfLabel">M1</span></div>
+      <div class="ct">Symbol: <span id="symbolLabel">--</span></div>
+    </div>
+    <div id="chart"></div>
+  </div>
+
+  <div class="side">
+    <div class="ct">DEBUG PANEL</div>
+    <div class="row"><span>Mode</span><span id="mode">--</span></div>
+    <div class="row"><span>Symbol</span><span id="symbol">--</span></div>
+    <div class="row"><span>Timeframe</span><span id="timeframe">--</span></div>
+    <div class="row"><span>Candles loaded</span><span id="candlesLoaded">--</span></div>
+    <div class="row"><span>Last candle time</span><span id="lastTime">--</span></div>
+    <div class="row"><span>Open</span><span id="o">--</span></div>
+    <div class="row"><span>High</span><span id="h">--</span></div>
+    <div class="row"><span>Low</span><span id="l">--</span></div>
+    <div class="row"><span>Close</span><span id="c">--</span></div>
+    <div class="row"><span>Last update</span><span id="updated">--</span></div>
+    <div class="log" id="log">V62 started...</div>
+  </div>
+</div>
+
 <script>
-let chart,candles,vol,ema8,ema21,ema50,lines=[],lastData=null,states=[],visible={ema:true,vp:true,tp:true};
-function fmt(v,d=3){v=Number(v);return Number.isFinite(v)?v.toFixed(d):"--"}function cls(v){return Number(v)>=0?"up":"dn"}function set(id,v,c=""){let e=document.getElementById(id);if(e){e.textContent=v;if(c)e.className=c}}function dot(id,on){document.getElementById(id).className=on?"dot on":"dot"}function log(s){states.push(`[${new Date().toLocaleTimeString()}] ${s}`);if(states.length>40)states.shift();document.getElementById("log").innerHTML=states.join("<br>")}
-function init(){if(chart)return;let el=document.getElementById("chart");chart=LightweightCharts.createChart(el,{width:el.clientWidth,height:el.clientHeight,layout:{background:{color:"#081219"},textColor:"#9ab1bb"},grid:{vertLines:{color:"#14222c"},horzLines:{color:"#14222c"}},rightPriceScale:{borderColor:"#24333d",scaleMargins:{top:.07,bottom:.24}},timeScale:{borderColor:"#24333d",timeVisible:true,rightOffset:8,barSpacing:7},crosshair:{mode:LightweightCharts.CrosshairMode.Normal}});
-candles=chart.addCandlestickSeries({upColor:"#00d69c",downColor:"#ff3b6b",borderUpColor:"#00d69c",borderDownColor:"#ff3b6b",wickUpColor:"#00d69c",wickDownColor:"#ff3b6b"});
-vol=chart.addHistogramSeries({priceScaleId:"vol",priceFormat:{type:"volume"},scaleMargins:{top:.82,bottom:0}});
-ema8=chart.addLineSeries({color:"#00ffcc",lineWidth:1,priceLineVisible:false,lastValueVisible:false});ema21=chart.addLineSeries({color:"#f0b90b",lineWidth:1,priceLineVisible:false,lastValueVisible:false});ema50=chart.addLineSeries({color:"#ff7a18",lineWidth:1,priceLineVisible:false,lastValueVisible:false});
-window.addEventListener("resize",()=>chart.resize(el.clientWidth,el.clientHeight))}
-function clearLines(){lines.forEach(l=>{try{candles.removePriceLine(l)}catch(e){}});lines=[]}
-function line(p,color,title,show=true){if(show&&Number.isFinite(Number(p)))lines.push(candles.createPriceLine({price:Number(p),color,lineWidth:1,lineStyle:LightweightCharts.LineStyle.Dashed,title,axisLabelVisible:true}))}
-function render(d){if(!d||!chart)return;let a=d.ai||{};if((a.chartCandles||[]).length){candles.setData(a.chartCandles);vol.setData((a.chartVolume||[]).map(x=>({time:x.time,value:x.value,color:x.color==="up"?"rgba(0,214,156,.45)":"rgba(255,59,107,.45)"})));if(!window._fit){chart.timeScale().fitContent();window._fit=true}}ema8.setData(visible.ema?(a.ema8Series||[]):[]);ema21.setData(visible.ema?(a.ema21Series||[]):[]);ema50.setData(visible.ema?(a.ema50Series||[]):[]);clearLines();line(a.vpoc,"#2476d8","POC",visible.vp);line(a.vah,"#00a87e","VAH",visible.vp);line(a.val,"#d24d43","VAL",visible.vp);line(a.tp1,"#00c076","TP1",visible.tp);line(a.tp2,"#00c076","TP2",visible.tp);line(a.tp3,"#00c076","TP3",visible.tp);line(a.sl,"#cf304a","SL",visible.tp)}
-async function setTF(tf){window._fit=false;document.querySelectorAll(".tf").forEach(b=>b.classList.toggle("active",b.id==="tf-"+tf));set("tfLabel",tf);await fetch("/api/timeframe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({timeframe:tf})});log("TIMEFRAME "+tf)}
-function toggle(k){visible[k]=!visible[k];document.getElementById(k==="ema"?"tEMA":k==="vp"?"tVP":"tTP").classList.toggle("active",visible[k]);render(lastData)}
-async function load(){try{init();let d=await (await fetch("/api/live",{cache:"no-store"})).json();lastData=d;let a=d.ai||{}, disp=d.display||{}, br=d.bridge||{}, sf=d.sfvn||{};dot("sfvndot",sf.status==="LIVE");dot("bridgedot",br.status==="LIVE");set("sfvn","SFVN "+(sf.status||"--"));set("bridge","BRIDGE "+(br.status||"--"));set("uptime",(d.uptime||0)+"s • "+(d.timeframe||"M1"));set("tfLabel",d.timeframe||"M1");document.querySelectorAll(".tf").forEach(b=>b.classList.toggle("active",b.id==="tf-"+(d.timeframe||"M1")));set("sym",disp.symbol||"--");set("price",fmt(disp.price));set("bid",fmt(disp.bid));set("ask",fmt(disp.ask));set("spread",fmt(disp.spread));let sig=a.signal||"WAIT";document.getElementById("sig").className="signal "+(sig==="BUY"?"buy":sig==="SELL"?"sell":"");set("decision",a.action||sig);set("reason",a.reason||"--");set("conf",(a.confidence||0)+"%",a.confidence>=70?"conf up":a.confidence>=50?"conf warn":"conf dn");set("mt5p",fmt(a.mt5Price));set("trend",a.trend||"--",a.trend==="BULLISH"?"up":a.trend==="BEARISH"?"dn":"warn");set("pressure",a.pressure||"--",(a.pressure||"").includes("BUY")?"up":(a.pressure||"").includes("SELL")?"dn":"warn");set("spd",fmt(a.smn,2)+" / "+fmt(a.power,2)+" / "+fmt(a.delta,2));set("rsiatr",fmt(a.rsi,1)+" / "+fmt(a.atr));set("emainfo",(a.emaStack||"--")+" / "+(a.emaCross||"--"));set("poc",fmt(a.vpoc));set("va",fmt(a.vah)+" / "+fmt(a.val));set("vpbias",a.volumeProfileBias||"--");set("bc",(a.bos||"--")+" / "+(a.choch||"--"));set("liq",a.liquidity||"--");set("tps",fmt(a.tp1)+" / "+fmt(a.tp2)+" / "+fmt(a.tp3));set("sl",fmt(a.sl));render(d);let st=(br.packets||0)+"_"+(d.timeframe||"");if(window._st!==st){log("PACKETS "+(br.packets||0)+" | "+(d.timeframe||""));window._st=st}}catch(e){log("ERROR "+e.message)}}setInterval(load,1000);load();
-</script></body></html>
+let chart, candleSeries;
+let chartLoaded = false;
+let currentTf = "M1";
+let lastPacket = 0;
+let logLines = [];
+
+function fmt(v,d=3){v=Number(v);return Number.isFinite(v)?v.toFixed(d):"--"}
+function set(id,v,c=""){const e=document.getElementById(id);if(e){e.textContent=v;if(c)e.className=c}}
+function dot(on){document.getElementById("bridgeDot").className=on?"dot on":"dot"}
+function log(s){logLines.push(`[${new Date().toLocaleTimeString()}] ${s}`);if(logLines.length>60)logLines.shift();document.getElementById("log").innerHTML=logLines.join("<br>")}
+
+function initChart(){
+  if(chart) return;
+  const el = document.getElementById("chart");
+  chart = LightweightCharts.createChart(el,{
+    width: el.clientWidth,
+    height: el.clientHeight,
+    layout:{background:{color:"#081219"},textColor:"#9ab1bb"},
+    grid:{vertLines:{color:"#14222c"},horzLines:{color:"#14222c"}},
+    rightPriceScale:{borderColor:"#24333d",scaleMargins:{top:.08,bottom:.08}},
+    timeScale:{borderColor:"#24333d",timeVisible:true,secondsVisible:false,rightOffset:12,barSpacing:8},
+    crosshair:{mode:LightweightCharts.CrosshairMode.Normal}
+  });
+  candleSeries = chart.addCandlestickSeries({
+    upColor:"#00d69c",
+    downColor:"#ff3b6b",
+    borderUpColor:"#00d69c",
+    borderDownColor:"#ff3b6b",
+    wickUpColor:"#00d69c",
+    wickDownColor:"#ff3b6b"
+  });
+  window.addEventListener("resize",()=>chart.resize(el.clientWidth,el.clientHeight));
+}
+
+async function setTF(tf){
+  currentTf = tf;
+  chartLoaded = false;
+  document.querySelectorAll(".tf").forEach(b=>b.classList.toggle("active",b.id==="tf-"+tf));
+  set("tfLabel",tf);
+  try{
+    await fetch("/api/timeframe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({timeframe:tf})});
+    if(candleSeries) candleSeries.setData([]);
+    log("CHANGE TF "+tf+" — waiting fresh MT5 candles");
+  }catch(e){log("TF ERROR "+e.message)}
+}
+
+function renderCandles(candles){
+  if(!candleSeries) return;
+  if(!candles || !candles.length) return;
+  candleSeries.setData(candles);
+  chart.timeScale().fitContent();
+  chartLoaded = true;
+}
+
+async function load(){
+  try{
+    initChart();
+    const j = await (await fetch("/api/live",{cache:"no-store"})).json();
+    const b = j.bridge || {};
+    const ch = j.chart || {};
+    dot(b.status==="LIVE");
+    set("bridgeStatus","BRIDGE "+(b.status||"--"),b.status==="LIVE"?"ok":"bad");
+    set("packetBox","Packets "+(b.packets||0));
+    set("uptime",(j.uptime||0)+"s");
+
+    if(j.timeframe){
+      currentTf = j.timeframe;
+      document.querySelectorAll(".tf").forEach(btn=>btn.classList.toggle("active",btn.id==="tf-"+j.timeframe));
+      set("tfLabel",j.timeframe);
+    }
+
+    set("mode",ch.mode||"--");
+    set("symbol",ch.symbol||"--");
+    set("symbolLabel",ch.symbol||"--");
+    set("timeframe",ch.timeframe||"--");
+    set("candlesLoaded",ch.candleCount||0);
+    set("updated",ch.updatedAt||"--");
+
+    const lc = ch.lastCandle || {};
+    set("lastTime",lc.time ? new Date(lc.time*1000).toLocaleString() : "--");
+    set("o",fmt(lc.open));
+    set("h",fmt(lc.high));
+    set("l",fmt(lc.low));
+    set("c",fmt(lc.close));
+
+    if((b.packets||0)!==lastPacket){
+      if(ch.timeframe === currentTf && Array.isArray(ch.candles)){
+        renderCandles(ch.candles);
+        log(`PACKET ${b.packets} | ${ch.mode} ${ch.symbol} ${ch.timeframe} | candles ${ch.candleCount}`);
+      }else{
+        log(`IGNORE packet tf=${ch.timeframe}, current=${currentTf}`);
+      }
+      lastPacket = b.packets||0;
+    }
+  }catch(e){
+    log("ERROR "+e.message);
+  }
+}
+setInterval(load,1000);
+load();
+</script>
+</body>
+</html>

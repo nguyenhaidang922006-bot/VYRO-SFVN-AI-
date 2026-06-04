@@ -84,12 +84,23 @@ app.post("/api/bridge/chart", auth, (req, res) => {
   if (p.timeframe) currentTimeframe = String(p.timeframe).toUpperCase();
 
   const candles = Array.isArray(p.candles) ? p.candles : [];
+
+  // DATA GUARD:
+  // Khi MT5 vừa bật/reconnect, copy_rates có thể trả rỗng hoặc rất ít nến.
+  // Không cho packet rỗng ghi đè làm mất chart đang có.
+  if (candles.length < 50) {
+    state.status = state.candles && state.candles.length ? "LIVE_HOLD_LAST_GOOD" : "WAITING_DATA";
+    state.lastError = p.error || `ignored short packet: ${candles.length} candles`;
+    state.updatedAt = new Date().toISOString();
+    return res.json({ ok: true, ignored: true, reason: "short_or_empty_candles", candles: candles.length, packets, timeframe: currentTimeframe });
+  }
+
   state = {
     status: "LIVE",
-    source: "MT5_FULL_CORE",
-    symbol: p.symbol || "UNKNOWN",
+    source: "SFVN_AI_AGENT_FULL_CORE",
+    symbol: p.symbol || "NANO SILVER",
     timeframe: p.timeframe || currentTimeframe,
-    mode: p.mode || "MT5",
+    mode: p.mode || "LIVE",
     candles,
     volume: Array.isArray(p.volume) ? p.volume : [],
     ema8: Array.isArray(p.ema8) ? p.ema8 : [],
@@ -106,14 +117,14 @@ app.post("/api/bridge/chart", auth, (req, res) => {
     lastError: p.error || "",
     updatedAt: new Date().toISOString()
   };
-  res.json({ ok: true, packets, timeframe: currentTimeframe });
+  res.json({ ok: true, packets, timeframe: currentTimeframe, candles: candles.length });
 });
 
 app.get("/api/live", (req, res) => {
   const ageMs = lastBridgeAt ? Date.now() - lastBridgeAt : null;
   res.json({
     ok: true,
-    mode: "SFVN_AI_AGENT_V64",
+    mode: "SFVN_AI_AGENT_V65",
     uptime: Math.floor((Date.now() - startedAt) / 1000),
     serverTime: new Date().toISOString(),
     timeframe: currentTimeframe,
@@ -124,4 +135,4 @@ app.get("/api/live", (req, res) => {
 
 app.use(express.static(path.join(__dirname, "../frontend")));
 app.get("*", (req, res) => res.sendFile(path.join(__dirname, "../frontend/index.html")));
-app.listen(PORT, () => console.log("[SFVN AI AGENT V64] Clean Client running", PORT));
+app.listen(PORT, () => console.log("[SFVN AI AGENT V65] Data Guard running", PORT));

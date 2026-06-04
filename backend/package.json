@@ -1,6 +1,6 @@
 {
-  "name": "sfvn-ai-agent-v64-clean-client",
-  "version": "64.0.0",
+  "name": "sfvn-ai-agent-v65-data-guard",
+  "version": "65.0.0",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

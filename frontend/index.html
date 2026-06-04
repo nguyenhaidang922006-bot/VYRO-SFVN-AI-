@@ -161,7 +161,7 @@ h1{font-size:24px;color:var(--aqua);letter-spacing:.5px}
 <div class="footer">Powered by SFVN AI AGENT</div>
 
 <script>
-let chart,candleSeries,volSeries,ema8,ema21,ema50,priceLines=[],currentTf="M1",lastPacket=0,visible={ema:true,vp:true,tp:true},chartLoaded=false,lastTf="";
+let chart,candleSeries,volSeries,ema8,ema21,ema50,priceLines=[],currentTf="M1",lastPacket=0,visible={ema:true,vp:true,tp:true},chartLoaded=false,lastTf="",loadedCount=0,lastFirstTime=0;
 function fmt(v,d=3){v=Number(v);return Number.isFinite(v)?v.toFixed(d):"--"}
 function set(id,v,c=""){const e=document.getElementById(id);if(e){e.textContent=v;if(c)e.className=c}}
 function dot(on){document.getElementById("bridgeDot").className=on?"dot on":"dot"}
@@ -180,24 +180,34 @@ function initChart(){
 }
 function clearLines(){priceLines.forEach(l=>{try{candleSeries.removePriceLine(l)}catch(e){}});priceLines=[]}
 function addLine(price,color,title,show=true){if(show&&Number.isFinite(Number(price)))priceLines.push(candleSeries.createPriceLine({price:Number(price),color,lineWidth:1,lineStyle:LightweightCharts.LineStyle.Dashed,title,axisLabelVisible:true}))}
-async function setTF(tf){currentTf=tf;chartLoaded=false;lastTf="";document.querySelectorAll(".tf").forEach(b=>b.classList.toggle("active",b.id==="tf-"+tf));set("tfLabel",tf);await fetch("/api/timeframe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({timeframe:tf})});if(candleSeries)candleSeries.setData([]);if(volSeries)volSeries.setData([]);clearLines()}
+async function setTF(tf){currentTf=tf;chartLoaded=false;lastTf="";loadedCount=0;lastFirstTime=0;document.querySelectorAll(".tf").forEach(b=>b.classList.toggle("active",b.id==="tf-"+tf));set("tfLabel",tf);await fetch("/api/timeframe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({timeframe:tf})});if(candleSeries)candleSeries.setData([]);if(volSeries)volSeries.setData([]);clearLines()}
 function toggle(k){visible[k]=!visible[k];document.getElementById(k==="ema"?"tEma":k==="vp"?"tVp":"tTp").classList.toggle("active",visible[k]);render(window.lastData)}
 function render(j){
  if(!j||!chart)return;
  const ch=j.chart||{},m=ch.metrics||{}; window.lastData=j;
  if(ch.timeframe!==currentTf)return;
  const candles=ch.candles||[],vol=ch.volume||[];
- if(candles.length){
-   if(!chartLoaded||lastTf!==ch.timeframe){
-     candleSeries.setData(candles);
-     volSeries.setData(vol.map(x=>({time:x.time,value:x.value,color:x.color==="up"?"rgba(0,214,156,.26)":"rgba(255,59,107,.26)"})));
-     chart.timeScale().fitContent();chartLoaded=true;lastTf=ch.timeframe;
-   }else{
-     const last=candles[candles.length-1];candleSeries.update(last);
-     const vv=vol[vol.length-1];if(vv)volSeries.update({time:vv.time,value:vv.value,color:vv.color==="up"?"rgba(0,214,156,.26)":"rgba(255,59,107,.26)"});
+ if(!candles.length || candles.length<50)return;
+
+ const firstTime=candles[0]?.time||0;
+ const needFullReload = !chartLoaded || lastTf!==ch.timeframe || loadedCount<50 || Math.abs(candles.length-loadedCount)>2 || firstTime!==lastFirstTime;
+
+ if(needFullReload){
+   candleSeries.setData(candles);
+   volSeries.setData(vol.map(x=>({time:x.time,value:x.value,color:x.color==="up"?"rgba(0,214,156,.22)":"rgba(255,59,107,.22)"})));
+   if(visible.ema){ema8.setData(ch.ema8||[]);ema21.setData(ch.ema21||[]);ema50.setData(ch.ema50||[]);}
+   else{ema8.setData([]);ema21.setData([]);ema50.setData([]);}
+   chart.timeScale().fitContent();
+   chartLoaded=true;lastTf=ch.timeframe;loadedCount=candles.length;lastFirstTime=firstTime;
+ }else{
+   const last=candles[candles.length-1];candleSeries.update(last);
+   const vv=vol[vol.length-1];if(vv)volSeries.update({time:vv.time,value:vv.value,color:vv.color==="up"?"rgba(0,214,156,.22)":"rgba(255,59,107,.22)"});
+   if(visible.ema){
+     const a=(ch.ema8||[]).slice(-1)[0],b=(ch.ema21||[]).slice(-1)[0],c=(ch.ema50||[]).slice(-1)[0];
+     if(a)ema8.update(a); if(b)ema21.update(b); if(c)ema50.update(c);
    }
  }
- ema8.setData(visible.ema?(ch.ema8||[]):[]);ema21.setData(visible.ema?(ch.ema21||[]):[]);ema50.setData(visible.ema?(ch.ema50||[]):[]);
+
  clearLines();
  addLine(ch.vpoc,"#2476d8","POC",visible.vp);addLine(ch.vah,"#00a87e","VAH",visible.vp);addLine(ch.val,"#d24d43","VAL",visible.vp);
  addLine(m.tp1,"#00c076","TP1",visible.tp);addLine(m.tp2,"#00c076","TP2",visible.tp);addLine(m.tp3,"#00c076","TP3",visible.tp);addLine(m.sl,"#cf304a","SL",visible.tp);

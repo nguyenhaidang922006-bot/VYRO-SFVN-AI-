@@ -1,6 +1,6 @@
 {
-  "name": "vyro-nsi-v63-full-core",
-  "version": "63.0.0",
+  "name": "sfvn-ai-agent-v64-clean-client",
+  "version": "64.0.0",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

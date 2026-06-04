@@ -2,24 +2,222 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>VYRO NSI V63 Full Core</title>
+<title>SFVN AI AGENT</title>
 <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}body{background:#070b10;color:#e8fff7;font-family:Segoe UI,Arial,sans-serif;padding:12px}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid #1b2a34;padding-bottom:10px;margin-bottom:10px}h1{font-size:22px;color:#00ffcc}.sub{font-size:12px;color:#8ca3ad;margin-top:3px}.badges{display:flex;gap:8px;flex-wrap:wrap}.badge{background:#101820;border:1px solid #24333d;border-radius:8px;padding:8px 11px;font-size:12px;font-weight:900}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#cf304a;margin-right:6px}.dot.on{background:#00c076;box-shadow:0 0 12px #00c076}.menu{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.btn,.tog{border:1px solid #24333d;background:#101820;color:#9ab1bb;border-radius:999px;padding:9px 14px;font-weight:900;cursor:pointer}.btn.active,.tog.active{border-color:#00ffcc;color:#00ffcc;background:#062820}.signal{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#101820;border:2px solid #f0b90b66;border-radius:14px;padding:12px;margin-bottom:10px}.signal.buy{border-color:#00c076}.signal.sell{border-color:#cf304a}.decision{font-family:Courier New;font-size:27px;font-weight:900;color:#f0b90b}.buy .decision{color:#00c076}.sell .decision{color:#cf304a}.reason{font-family:Courier New;color:#9ab1bb;font-size:12px}.conf{font-family:Courier New;font-size:30px;font-weight:900}.main{display:grid;grid-template-columns:minmax(0,1fr) 375px;gap:10px}.chartCard,.side{background:#081219;border:1px solid #24333d;border-radius:14px;padding:12px}.chartHead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}.ct{font-size:13px;color:#00ffcc;font-weight:900}#chart{width:100%;height:640px}.row{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #1b2a34;padding:8px 0;font-size:13px}.row span:first-child{color:#789}.row span:last-child{font-family:Courier New;font-weight:900;text-align:right}.ok,.up{color:#00c076!important}.bad,.dn{color:#cf304a!important}.warn{color:#f0b90b!important}.log{background:#071018;border:1px solid #24333d;border-radius:10px;padding:10px;margin-top:10px;height:100px;overflow:auto;font-family:Courier New;font-size:12px;color:#9ab1bb}@media(max-width:1000px){.main{grid-template-columns:1fr}#chart{height:540px}.decision{font-size:22px}}</style>
+:root{--bg:#070b10;--card:#081219;--card2:#101820;--line:#24333d;--text:#e8fff7;--muted:#78929d;--sfvn:#0B5A4A;--aqua:#17D7C0;--buy:#00c076;--sell:#cf304a;--warn:#f0b90b}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 50% 30%,#10232b 0,#070b10 48%,#05080b 100%);color:var(--text);font-family:Segoe UI,Arial,sans-serif;padding:12px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;background:linear-gradient(135deg,#081219,#0c1b20);border:1px solid #17d7c033;border-radius:16px;padding:12px 14px;margin-bottom:10px}
+.brand{display:flex;align-items:center;gap:12px}
+.logo{height:48px;width:100px;object-fit:contain;background:#fff;border-radius:10px;padding:5px}
+h1{font-size:24px;color:var(--aqua);letter-spacing:.5px}
+.sub{font-size:12px;color:#9ab1bb;margin-top:3px}
+.status{display:flex;gap:8px;flex-wrap:wrap}
+.badge{background:#101820;border:1px solid #24333d;border-radius:999px;padding:8px 12px;font-size:12px;font-weight:900}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--sell);margin-right:6px}
+.dot.on{background:var(--buy);box-shadow:0 0 12px var(--buy)}
+.marketbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:#0a1419;border:1px solid #1e343a;border-radius:14px;padding:10px 12px;margin-bottom:10px}
+.products,.tfbar,.tools{display:flex;gap:8px;flex-wrap:wrap}
+.pill,.btn,.tog{border:1px solid var(--line);background:#101820;color:#9ab1bb;border-radius:999px;padding:8px 12px;font-weight:900;cursor:pointer}
+.pill.active,.btn.active,.tog.active{border-color:var(--aqua);color:var(--aqua);background:#062820}
+.pricebox{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.priceItem{font-family:Courier New;font-weight:900}
+.priceItem b{color:var(--aqua)}
+.signal{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#101820;border:2px solid #f0b90b66;border-radius:16px;padding:14px;margin-bottom:10px}
+.signal.buy{border-color:var(--buy);background:linear-gradient(135deg,#071711,#101820)}
+.signal.sell{border-color:var(--sell);background:linear-gradient(135deg,#1a080d,#101820)}
+.decision{font-family:Courier New;font-size:30px;font-weight:900;color:var(--warn)}
+.buy .decision{color:var(--buy)}.sell .decision{color:var(--sell)}
+.reason{font-family:Courier New;color:#9ab1bb;font-size:12px;margin-top:4px}
+.conf{font-family:Courier New;font-size:34px;font-weight:900}
+.main{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:10px}
+.chartCard,.side,.flowPanel{background:rgba(8,18,25,.96);border:1px solid var(--line);border-radius:16px;padding:12px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.chartHead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+.ct{font-size:13px;color:var(--aqua);font-weight:900}
+#chart{width:100%;height:600px}
+.row{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #1b2a34;padding:9px 0;font-size:13px}
+.row span:first-child{color:#789}
+.row span:last-child{font-family:Courier New;font-weight:900;text-align:right}
+.ok,.up{color:var(--buy)!important}.bad,.dn{color:var(--sell)!important}.warn{color:var(--warn)!important}
+.flowPanel{margin-top:10px}
+.flowTitle{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.flowGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.flowBox{background:linear-gradient(135deg,#101820,#0b151b);border:1px solid #24333d;border-radius:16px;padding:16px;text-align:center;min-height:120px}
+.flowLabel{font-size:13px;color:#9ab1bb;font-weight:900}
+.flowValue{font-family:Courier New;font-size:34px;font-weight:900;margin:10px 0}
+.flowHint{font-size:12px;font-weight:900}
+.footer{margin-top:10px;text-align:center;color:#60737c;font-size:12px}
+@media(max-width:1050px){.main{grid-template-columns:1fr}#chart{height:520px}.decision{font-size:23px}.flowGrid{grid-template-columns:1fr}.logo{height:42px;width:90px}}
+</style>
 </head>
 <body>
-<div class="top"><div><h1>VYRO NSI V63 — FULL CORE</h1><div class="sub">Chart MT5 làm lõi • EMA 8/21/50 • Volume Profile • POC/VAH/VAL • AI signal cơ bản</div></div><div class="badges"><div class="badge"><span id="bridgeDot" class="dot"></span><span id="bridgeStatus">BRIDGE</span></div><div class="badge" id="packetBox">Packets 0</div><div class="badge" id="uptime">0s</div></div></div>
-<div class="menu"><button class="btn tf active" id="tf-M1" onclick="setTF('M1')">M1</button><button class="btn tf" id="tf-M5" onclick="setTF('M5')">M5</button><button class="btn tf" id="tf-M15" onclick="setTF('M15')">M15</button><button class="btn tf" id="tf-H1" onclick="setTF('H1')">H1</button><button class="tog active" id="tEma" onclick="toggle('ema')">EMA</button><button class="tog active" id="tVp" onclick="toggle('vp')">POC/VA</button><button class="tog active" id="tTp" onclick="toggle('tp')">TP/SL</button></div>
-<div class="signal" id="sig"><div><div class="decision" id="decision">WAIT CONFIRM</div><div class="reason" id="reason">Waiting Python bridge...</div></div><div><div style="font-size:11px;color:#789">CONFIDENCE</div><div class="conf warn" id="conf">--%</div></div></div>
-<div class="main"><div class="chartCard"><div class="chartHead"><div class="ct">MT5 FULL CHART — <span id="tfLabel">M1</span></div><div class="ct">Symbol: <span id="symbolLabel">--</span></div></div><div id="chart"></div></div><div class="side"><div class="ct">AI / INDICATOR PANEL</div><div class="row"><span>Mode</span><span id="mode">--</span></div><div class="row"><span>Symbol</span><span id="symbol">--</span></div><div class="row"><span>Timeframe</span><span id="timeframe">--</span></div><div class="row"><span>Candles</span><span id="candlesLoaded">--</span></div><div class="row"><span>Last candle</span><span id="lastTime">--</span></div><div class="row"><span>OHLC</span><span id="ohlc">--</span></div><div class="row"><span>Trend</span><span id="trend">--</span></div><div class="row"><span>Pressure</span><span id="pressure">--</span></div><div class="row"><span>RSI / ATR</span><span id="rsiatr">--</span></div><div class="row"><span>SMN / Power / Delta</span><span id="spd">--</span></div><div class="row"><span>POC</span><span id="poc">--</span></div><div class="row"><span>VAH / VAL</span><span id="va">--</span></div><div class="row"><span>VP Bias</span><span id="vpbias">--</span></div><div class="row"><span>TP1/TP2/TP3</span><span id="tps">--</span></div><div class="row"><span>SL</span><span id="sl">--</span></div><div class="log" id="log">V63 started...</div></div></div>
+<div class="top">
+  <div class="brand">
+    <img class="logo" src="/assets/sfvn_logo.jpeg" alt="SFVN">
+    <div>
+      <h1>SFVN AI AGENT</h1>
+      <div class="sub">AI SMART FLOW • VOLUME PROFILE • SMART MONEY CONCEPT</div>
+    </div>
+  </div>
+  <div class="status">
+    <div class="badge"><span id="bridgeDot" class="dot"></span><span id="bridgeStatus">AI ENGINE</span></div>
+    <div class="badge" id="packetBox">LIVE</div>
+    <div class="badge" id="uptime">0s</div>
+  </div>
+</div>
+
+<div class="marketbar">
+  <div class="products">
+    <button class="pill active">NANO SILVER</button>
+    <button class="pill">BẠC</button>
+    <button class="pill">VÀNG</button>
+    <button class="pill">BTC</button>
+    <button class="pill">SP500</button>
+  </div>
+  <div class="pricebox">
+    <div class="priceItem">GIÁ THAM CHIẾU: <b id="refPrice">--</b></div>
+    <div class="priceItem">TRẠNG THÁI: <b id="liveState">WAIT</b></div>
+  </div>
+</div>
+
+<div class="marketbar">
+  <div class="tfbar">
+    <button class="btn tf active" id="tf-M1" onclick="setTF('M1')">M1</button>
+    <button class="btn tf" id="tf-M5" onclick="setTF('M5')">M5</button>
+    <button class="btn tf" id="tf-M15" onclick="setTF('M15')">M15</button>
+    <button class="btn tf" id="tf-H1" onclick="setTF('H1')">H1</button>
+  </div>
+  <div class="tools">
+    <button class="tog active" id="tEma" onclick="toggle('ema')">EMA</button>
+    <button class="tog active" id="tVp" onclick="toggle('vp')">POC/VA</button>
+    <button class="tog active" id="tTp" onclick="toggle('tp')">TP/SL</button>
+  </div>
+</div>
+
+<div class="signal" id="sig">
+  <div>
+    <div class="decision" id="decision">WAIT CONFIRM</div>
+    <div class="reason" id="reason">Đang chờ dữ liệu thị trường...</div>
+  </div>
+  <div>
+    <div style="font-size:11px;color:#789">AI CONFIDENCE</div>
+    <div class="conf warn" id="conf">--%</div>
+  </div>
+</div>
+
+<div class="main">
+  <div>
+    <div class="chartCard">
+      <div class="chartHead">
+        <div class="ct">SFVN SMART FLOW CHART — <span id="tfLabel">M1</span></div>
+        <div class="ct">SFVN AI AGENT</div>
+      </div>
+      <div id="chart"></div>
+    </div>
+
+    <div class="flowPanel">
+      <div class="flowTitle">
+        <div class="ct">SMART FLOW ENGINE</div>
+        <div class="ct" id="flowMode">WAITING</div>
+      </div>
+      <div class="flowGrid">
+        <div class="flowBox">
+          <div class="flowLabel">SMN</div>
+          <div class="flowValue" id="smnBig">--</div>
+          <div class="flowHint" id="smnHint">WAIT</div>
+        </div>
+        <div class="flowBox">
+          <div class="flowLabel">POWER</div>
+          <div class="flowValue" id="powerBig">--</div>
+          <div class="flowHint" id="powerHint">WAIT</div>
+        </div>
+        <div class="flowBox">
+          <div class="flowLabel">DELTA</div>
+          <div class="flowValue" id="deltaBig">--</div>
+          <div class="flowHint" id="deltaHint">WAIT</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="side">
+    <div class="ct">AI / INDICATOR PANEL</div>
+    <div class="row"><span>Trend</span><span id="trend">--</span></div>
+    <div class="row"><span>Pressure</span><span id="pressure">--</span></div>
+    <div class="row"><span>RSI</span><span id="rsi">--</span></div>
+    <div class="row"><span>ATR</span><span id="atr">--</span></div>
+    <div class="row"><span>POC</span><span id="poc">--</span></div>
+    <div class="row"><span>VAH</span><span id="vah">--</span></div>
+    <div class="row"><span>VAL</span><span id="val">--</span></div>
+    <div class="row"><span>VP Bias</span><span id="vpbias">--</span></div>
+    <div class="row"><span>TP1</span><span id="tp1">--</span></div>
+    <div class="row"><span>TP2</span><span id="tp2">--</span></div>
+    <div class="row"><span>TP3</span><span id="tp3">--</span></div>
+    <div class="row"><span>SL</span><span id="sl">--</span></div>
+  </div>
+</div>
+
+<div class="footer">Powered by SFVN AI AGENT</div>
+
 <script>
-let chart,candleSeries,volSeries,ema8,ema21,ema50,priceLines=[],currentTf="M1",lastPacket=0,logLines=[],visible={ema:true,vp:true,tp:true},chartLoaded=false,lastTf="";
-function fmt(v,d=3){v=Number(v);return Number.isFinite(v)?v.toFixed(d):"--"}function set(id,v,c=""){const e=document.getElementById(id);if(e){e.textContent=v;if(c)e.className=c}}function dot(on){document.getElementById("bridgeDot").className=on?"dot on":"dot"}function log(s){logLines.push(`[${new Date().toLocaleTimeString()}] ${s}`);if(logLines.length>60)logLines.shift();document.getElementById("log").innerHTML=logLines.join("<br>")}
-function initChart(){if(chart)return;const el=document.getElementById("chart");chart=LightweightCharts.createChart(el,{width:el.clientWidth,height:el.clientHeight,layout:{background:{color:"#081219"},textColor:"#9ab1bb"},grid:{vertLines:{color:"#14222c"},horzLines:{color:"#14222c"}},rightPriceScale:{borderColor:"#24333d",scaleMargins:{top:.08,bottom:.20}},timeScale:{borderColor:"#24333d",timeVisible:true,secondsVisible:false,rightOffset:12,barSpacing:8,shiftVisibleRangeOnNewBar:true},crosshair:{mode:LightweightCharts.CrosshairMode.Normal}});candleSeries=chart.addCandlestickSeries({upColor:"#00d69c",downColor:"#ff3b6b",borderUpColor:"#00d69c",borderDownColor:"#ff3b6b",wickUpColor:"#00d69c",wickDownColor:"#ff3b6b"});volSeries=chart.addHistogramSeries({priceScaleId:"vol",priceFormat:{type:"volume"},scaleMargins:{top:.82,bottom:0}});ema8=chart.addLineSeries({color:"#00ffcc",lineWidth:1,priceLineVisible:false,lastValueVisible:false});ema21=chart.addLineSeries({color:"#f0b90b",lineWidth:1,priceLineVisible:false,lastValueVisible:false});ema50=chart.addLineSeries({color:"#ff7a18",lineWidth:1,priceLineVisible:false,lastValueVisible:false});window.addEventListener("resize",()=>chart.resize(el.clientWidth,el.clientHeight))}
+let chart,candleSeries,volSeries,ema8,ema21,ema50,priceLines=[],currentTf="M1",lastPacket=0,visible={ema:true,vp:true,tp:true},chartLoaded=false,lastTf="";
+function fmt(v,d=3){v=Number(v);return Number.isFinite(v)?v.toFixed(d):"--"}
+function set(id,v,c=""){const e=document.getElementById(id);if(e){e.textContent=v;if(c)e.className=c}}
+function dot(on){document.getElementById("bridgeDot").className=on?"dot on":"dot"}
+function colorClass(v){v=Number(v);return v>=0?"up":"dn"}
+function strength(v,t1,t2){v=Math.abs(Number(v)||0);return v>=t2?"STRONG":v>=t1?"WATCH":"WEAK"}
+function initChart(){
+ if(chart)return;
+ const el=document.getElementById("chart");
+ chart=LightweightCharts.createChart(el,{width:el.clientWidth,height:el.clientHeight,layout:{background:{color:"#081219"},textColor:"#9ab1bb"},grid:{vertLines:{color:"#14222c"},horzLines:{color:"#14222c"}},rightPriceScale:{borderColor:"#24333d",scaleMargins:{top:.08,bottom:.20}},timeScale:{borderColor:"#24333d",timeVisible:true,secondsVisible:false,rightOffset:12,barSpacing:8,shiftVisibleRangeOnNewBar:true},crosshair:{mode:LightweightCharts.CrosshairMode.Normal}});
+ candleSeries=chart.addCandlestickSeries({upColor:"#00d69c",downColor:"#ff3b6b",borderUpColor:"#00d69c",borderDownColor:"#ff3b6b",wickUpColor:"#00d69c",wickDownColor:"#ff3b6b"});
+ volSeries=chart.addHistogramSeries({priceScaleId:"vol",priceFormat:{type:"volume"},scaleMargins:{top:.82,bottom:0}});
+ ema8=chart.addLineSeries({color:"#17D7C0",lineWidth:1,priceLineVisible:false,lastValueVisible:false});
+ ema21=chart.addLineSeries({color:"#f0b90b",lineWidth:1,priceLineVisible:false,lastValueVisible:false});
+ ema50=chart.addLineSeries({color:"#ff7a18",lineWidth:1,priceLineVisible:false,lastValueVisible:false});
+ window.addEventListener("resize",()=>chart.resize(el.clientWidth,el.clientHeight));
+}
 function clearLines(){priceLines.forEach(l=>{try{candleSeries.removePriceLine(l)}catch(e){}});priceLines=[]}
 function addLine(price,color,title,show=true){if(show&&Number.isFinite(Number(price)))priceLines.push(candleSeries.createPriceLine({price:Number(price),color,lineWidth:1,lineStyle:LightweightCharts.LineStyle.Dashed,title,axisLabelVisible:true}))}
-async function setTF(tf){currentTf=tf;chartLoaded=false;lastTf="";document.querySelectorAll(".tf").forEach(b=>b.classList.toggle("active",b.id==="tf-"+tf));set("tfLabel",tf);try{await fetch("/api/timeframe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({timeframe:tf})});if(candleSeries)candleSeries.setData([]);if(volSeries)volSeries.setData([]);clearLines();log("CHANGE TF "+tf)}catch(e){log("TF ERROR "+e.message)}}
+async function setTF(tf){currentTf=tf;chartLoaded=false;lastTf="";document.querySelectorAll(".tf").forEach(b=>b.classList.toggle("active",b.id==="tf-"+tf));set("tfLabel",tf);await fetch("/api/timeframe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({timeframe:tf})});if(candleSeries)candleSeries.setData([]);if(volSeries)volSeries.setData([]);clearLines()}
 function toggle(k){visible[k]=!visible[k];document.getElementById(k==="ema"?"tEma":k==="vp"?"tVp":"tTp").classList.toggle("active",visible[k]);render(window.lastData)}
-function render(j){if(!j||!chart)return;const ch=j.chart||{};window.lastData=j;if(ch.timeframe!==currentTf)return;const candles=ch.candles||[], vol=ch.volume||[];if(candles.length){if(!chartLoaded||lastTf!==ch.timeframe){candleSeries.setData(candles);volSeries.setData(vol.map(x=>({time:x.time,value:x.value,color:x.color==="up"?"rgba(0,214,156,.30)":"rgba(255,59,107,.30)"})));chart.timeScale().fitContent();chartLoaded=true;lastTf=ch.timeframe}else{const last=candles[candles.length-1];candleSeries.update(last);const vv=vol[vol.length-1];if(vv)volSeries.update({time:vv.time,value:vv.value,color:vv.color==="up"?"rgba(0,214,156,.30)":"rgba(255,59,107,.30)"})}}ema8.setData(visible.ema?(ch.ema8||[]):[]);ema21.setData(visible.ema?(ch.ema21||[]):[]);ema50.setData(visible.ema?(ch.ema50||[]):[]);clearLines();addLine(ch.vpoc,"#2476d8","POC",visible.vp);addLine(ch.vah,"#00a87e","VAH",visible.vp);addLine(ch.val,"#d24d43","VAL",visible.vp);const m=ch.metrics||{};addLine(m.tp1,"#00c076","TP1",visible.tp);addLine(m.tp2,"#00c076","TP2",visible.tp);addLine(m.tp3,"#00c076","TP3",visible.tp);addLine(m.sl,"#cf304a","SL",visible.tp)}
-async function load(){try{initChart();const j=await(await fetch("/api/live",{cache:"no-store"})).json();const b=j.bridge||{},ch=j.chart||{},m=ch.metrics||{};dot(b.status==="LIVE");set("bridgeStatus","BRIDGE "+(b.status||"--"),b.status==="LIVE"?"ok":"bad");set("packetBox","Packets "+(b.packets||0));set("uptime",(j.uptime||0)+"s");if(j.timeframe){currentTf=j.timeframe;document.querySelectorAll(".tf").forEach(btn=>btn.classList.toggle("active",btn.id==="tf-"+j.timeframe));set("tfLabel",j.timeframe)}set("mode",ch.mode||"--");set("symbol",ch.symbol||"--");set("symbolLabel",ch.symbol||"--");set("timeframe",ch.timeframe||"--");set("candlesLoaded",ch.candleCount||0);const lc=ch.lastCandle||{};set("lastTime",lc.time?new Date(lc.time*1000).toLocaleString():"--");set("ohlc",`${fmt(lc.open)} / ${fmt(lc.high)} / ${fmt(lc.low)} / ${fmt(lc.close)}`);set("trend",m.trend||"--",m.trend==="BULLISH"?"up":m.trend==="BEARISH"?"dn":"warn");set("pressure",m.pressure||"--",(m.pressure||"").includes("BUY")?"up":(m.pressure||"").includes("SELL")?"dn":"warn");set("rsiatr",fmt(m.rsi,1)+" / "+fmt(m.atr));set("spd",fmt(m.smn,2)+" / "+fmt(m.power,2)+" / "+fmt(m.delta,2));set("poc",fmt(ch.vpoc));set("va",fmt(ch.vah)+" / "+fmt(ch.val));set("vpbias",m.vpBias||"--");set("tps",fmt(m.tp1)+" / "+fmt(m.tp2)+" / "+fmt(m.tp3));set("sl",fmt(m.sl));const sig=m.signal||"WAIT";document.getElementById("sig").className="signal "+(sig==="BUY"?"buy":sig==="SELL"?"sell":"");set("decision",m.action||sig);set("reason",m.reason||"--");set("conf",(m.confidence||0)+"%",m.confidence>=70?"conf up":m.confidence>=50?"conf warn":"conf bad");if((b.packets||0)!==lastPacket){render(j);log(`PACKET ${b.packets} | ${ch.mode} ${ch.symbol} ${ch.timeframe} | candles ${ch.candleCount}`);lastPacket=b.packets||0}else render(j)}catch(e){log("ERROR "+e.message)}}setInterval(load,1000);load();
-</script></body></html>
+function render(j){
+ if(!j||!chart)return;
+ const ch=j.chart||{},m=ch.metrics||{}; window.lastData=j;
+ if(ch.timeframe!==currentTf)return;
+ const candles=ch.candles||[],vol=ch.volume||[];
+ if(candles.length){
+   if(!chartLoaded||lastTf!==ch.timeframe){
+     candleSeries.setData(candles);
+     volSeries.setData(vol.map(x=>({time:x.time,value:x.value,color:x.color==="up"?"rgba(0,214,156,.26)":"rgba(255,59,107,.26)"})));
+     chart.timeScale().fitContent();chartLoaded=true;lastTf=ch.timeframe;
+   }else{
+     const last=candles[candles.length-1];candleSeries.update(last);
+     const vv=vol[vol.length-1];if(vv)volSeries.update({time:vv.time,value:vv.value,color:vv.color==="up"?"rgba(0,214,156,.26)":"rgba(255,59,107,.26)"});
+   }
+ }
+ ema8.setData(visible.ema?(ch.ema8||[]):[]);ema21.setData(visible.ema?(ch.ema21||[]):[]);ema50.setData(visible.ema?(ch.ema50||[]):[]);
+ clearLines();
+ addLine(ch.vpoc,"#2476d8","POC",visible.vp);addLine(ch.vah,"#00a87e","VAH",visible.vp);addLine(ch.val,"#d24d43","VAL",visible.vp);
+ addLine(m.tp1,"#00c076","TP1",visible.tp);addLine(m.tp2,"#00c076","TP2",visible.tp);addLine(m.tp3,"#00c076","TP3",visible.tp);addLine(m.sl,"#cf304a","SL",visible.tp);
+}
+async function load(){
+ try{
+   initChart();
+   const j=await(await fetch("/api/live",{cache:"no-store"})).json();
+   const b=j.bridge||{},ch=j.chart||{},m=ch.metrics||{},lc=ch.lastCandle||{};
+   dot(b.status==="LIVE");set("bridgeStatus","AI ENGINE "+(b.status==="LIVE"?"ACTIVE":"WAIT"),b.status==="LIVE"?"ok":"bad");set("packetBox",b.status==="LIVE"?"LIVE":"WAIT");set("uptime",(j.uptime||0)+"s");
+   if(j.timeframe){currentTf=j.timeframe;document.querySelectorAll(".tf").forEach(btn=>btn.classList.toggle("active",btn.id==="tf-"+j.timeframe));set("tfLabel",j.timeframe)}
+   set("refPrice",fmt(lc.close));set("liveState",b.status==="LIVE"?"LIVE":"WAIT",b.status==="LIVE"?"ok":"warn");
+   const sig=m.signal||"WAIT";document.getElementById("sig").className="signal "+(sig==="BUY"?"buy":sig==="SELL"?"sell":"");set("decision",m.action||sig);set("reason",m.reason||"--");set("conf",(m.confidence||0)+"%",m.confidence>=70?"conf up":m.confidence>=50?"conf warn":"conf bad");
+   set("trend",m.trend||"--",m.trend==="BULLISH"?"up":m.trend==="BEARISH"?"dn":"warn");set("pressure",m.pressure||"--",(m.pressure||"").includes("BUY")?"up":(m.pressure||"").includes("SELL")?"dn":"warn");set("rsi",fmt(m.rsi,1));set("atr",fmt(m.atr));set("poc",fmt(ch.vpoc));set("vah",fmt(ch.vah));set("val",fmt(ch.val));set("vpbias",m.vpBias||"--");set("tp1",fmt(m.tp1));set("tp2",fmt(m.tp2));set("tp3",fmt(m.tp3));set("sl",fmt(m.sl));
+   set("flowMode",m.trend||"WAIT");
+   set("smnBig",(m.smn>=0?"▲ ":"▼ ")+fmt(Math.abs(m.smn),2),colorClass(m.smn));set("powerBig",(m.power>=0?"▲ ":"▼ ")+fmt(Math.abs(m.power),2),colorClass(m.power));set("deltaBig",(m.delta>=0?"▲ ":"▼ ")+fmt(Math.abs(m.delta),2),colorClass(m.delta));
+   set("smnHint",strength(m.smn,80,150));set("powerHint",strength(m.power,50,100));set("deltaHint",Number(m.delta)>30?"BUY DOMINANT":Number(m.delta)<-30?"SELL DOMINANT":"NEUTRAL");
+   if((b.packets||0)!==lastPacket){render(j);lastPacket=b.packets||0}else render(j);
+ }catch(e){}
+}
+setInterval(load,1000);load();
+</script>
+</body></html>

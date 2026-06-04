@@ -113,7 +113,7 @@ app.get("/api/live", (req, res) => {
   const ageMs = lastBridgeAt ? Date.now() - lastBridgeAt : null;
   res.json({
     ok: true,
-    mode: "V63_FULL_CORE",
+    mode: "SFVN_AI_AGENT_V64",
     uptime: Math.floor((Date.now() - startedAt) / 1000),
     serverTime: new Date().toISOString(),
     timeframe: currentTimeframe,
@@ -124,4 +124,4 @@ app.get("/api/live", (req, res) => {
 
 app.use(express.static(path.join(__dirname, "../frontend")));
 app.get("*", (req, res) => res.sendFile(path.join(__dirname, "../frontend/index.html")));
-app.listen(PORT, () => console.log("[VYRO V63] Full Core running", PORT));
+app.listen(PORT, () => console.log("[SFVN AI AGENT V64] Clean Client running", PORT));
